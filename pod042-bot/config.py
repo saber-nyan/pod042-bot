@@ -34,6 +34,6 @@ ROOT = 'pod042-bot.resources'
 # VIDEOS #####################
 VIDEOS = ROOT + '.videos'
 ###
-CODFISH = 'codfish.webm'
+CODFISH = 'codfish.mp4'
 ##############################
 #################################################

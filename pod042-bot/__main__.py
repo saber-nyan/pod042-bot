@@ -13,6 +13,7 @@ import traceback
 import requests
 import telebot
 from telebot.types import Message, User
+from pkg_resources import resource_stream
 
 from . import config
 
@@ -38,29 +39,28 @@ def bot_command_codfish(msg: Message):
     :param msg: original message
     """
     bot_all_messages(msg)
+    chat_id = msg.chat.id
 
     text = msg.text.replace("@", "")  # Sometimes `lolbot` is written as `@lolbot`
     words = text.split()
     username = words[-1]  # Get username from orig. message
+    bot.send_chat_action(chat_id, "record_video")
+    codfish_video = resource_stream(config.VIDEOS, config.CODFISH)  # Our codfish video
     if len(words) <= 1:  # No username
-        bot.send_message(msg.chat.id,
-                         "Укажи юзернейм кого бить!")
+        bot.send_message(chat_id, "Укажи юзернейм кого бить!")
     elif username == config.BOT_USERNAME:  # Himself
-        bot.send_message(msg.chat.id,
-                         "<code>Хорошенько шлепнул себя треской.</code>",
-                         parse_mode="HTML")
+        bot.send_video(chat_id, codfish_video, caption="Хорошенько шлепнул себя треской.")
     elif username in users_dict:  # Search in our users dict (user_id's are unique?)
         raw = requests.get("https://api.telegram.org:443/bot{}/getChatMember?chat_id={}&user_id={}"
-                           .format(config.BOT_TOKEN, msg.chat.id, users_dict[username]))  # Get user first name
+                           .format(config.BOT_TOKEN, chat_id, users_dict[username]))  # Get user first name
         json: tuple = raw.json()
         # noinspection PyTypeChecker
         user_first_name = json["result"]["user"]["first_name"]
         log.debug("user first name is {}".format(user_first_name))
-        bot.send_message(msg.chat.id,
-                         "<code>Хорошенько шлепнул {} треской.</code>"
-                         .format(user_first_name), parse_mode="HTML")
+        bot.send_video(chat_id, codfish_video, caption="Хорошенько шлепнул {} треской."
+                       .format(user_first_name))
     else:  # Unknown
-        bot.send_message(msg.chat.id, "Извини, пока не знаю <b>{}</b>...".format(username), parse_mode="HTML")
+        bot.send_message(chat_id, "Извини, пока не знаю <b>{}</b>...".format(username), parse_mode="HTML")
 
 
 @bot.message_handler(func=lambda m: True)
