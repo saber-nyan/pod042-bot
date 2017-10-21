@@ -6,7 +6,7 @@ from distutils.core import setup
 
 from setuptools import find_packages
 
-with open('README.rst') as file:
+with open('README.rst', mode='r', encoding='utf-8') as file:
     readme = file.read()
 
 setup(
