@@ -3,6 +3,8 @@ import logging
 import os
 import sys
 
+# FROM ENV: SETTINGS! ###########################
+
 # noinspection PyBroadException
 try:
     BOT_TOKEN = os.environ['BOT_TOKEN']  # Токен, полученный у @BotFather.
@@ -24,3 +26,14 @@ if 'LOG_TO_STDOUT_DISABLE' in os.environ:  # Логгировать в выво�
 LOG_TO_FILE = True
 if 'LOG_TO_FILE_DISABLE' in os.environ:  # Логгировать в файл?
     LOG_TO_FILE = False
+
+#################################################
+# BUILTIN: RESOURCES! ###########################
+ROOT = 'pod042-bot.resources'
+
+# VIDEOS #####################
+VIDEOS = ROOT + '.videos'
+###
+CODFISH = 'codfish.webm'
+##############################
+#################################################
