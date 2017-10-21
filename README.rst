@@ -7,37 +7,41 @@ pod042-bot
 
 .. image:: https://i.imgur.com/ORL9f5E.png
 
+Используется `pyTelegramBotAPI <https://github.com/eternnoir/pyTelegramBotAPI>`_.
+
+*********
+Что может
+*********
++-------------+-------------+----------------------------+------------------------------------------+
+| Команда     | Аргумент    | Описание                   | Пример вывода                            |
++=============+=============+============================+==========================================+
+| ``codfish`` | * @username | Бьет пользователя треской! | * Укажи юзернейм кого бить!              |
+|             | * username  | А еще с няшной вебмкой.    | * Хорошенько шлепнул себя треской.       |
+|             |             | Имя берет из профиля.      | * Хорошенько шлепнул saber-nyan треской. |
++-------------+-------------+----------------------------+------------------------------------------+
+
+::
+
+> И это все?!
+> WIP!
+
 *********
 Установка
 *********
 .. code-block:: bash
 
-    $ git clone https://github.com/saber-nyan/pod042-bot.git && cd pod042-bot
-
-Затем в директории pod042-bot необходимо создать файл ``config.py`` с таким содержанием:
-
-.. code-block:: python
-
-    # -*- coding: utf-8 -*-
-    import logging
-
-    BOT_TOKEN = "123456789:qncAdkfKcDkkfOdamdfsnKAbksbdlfVnxn"  # Токен, полученный у @BotFather. И не надейтесь, сюда я ввел случайный.
-    BOT_USERNAME = "my_bot"  # Username бота.
-
-    NUM_THREADS = 16  # Кол-во потоков обработки запросов.
-
-    LOG_FORMAT = '%(asctime)s (%(filename)s:%(lineno)d %(threadName)s) %(levelname)s - %(name)s: "%(message)s"'  # Формат лога.
-    LOG_LEVEL = logging.INFO  # Уровень лога.
-
-После этого, в корневой директории репозитория:
-
-.. code-block:: bash
-
-    # Рекомендую завести virtualenv:
-    $ virtualenv ./venv
+    # Рекомендую завести virtualenv
+    $ virtualenv3 ./venv
     $ source ./venv/bin/activate
-    ##############################
-    $ python3 ./setup.py install
     
-    $ cd
-    $ python3 -m pod042-bot
+    # Клонируем репозиторий, устанавливаем в virtualenv
+    $ git clone https://github.com/saber-nyan/pod042-bot.git
+    $ cd pod042-bot
+    $ pip install . # Или python ./setup.py install
+    
+    # Настраиваем бота. Еще несколько устанавливаемых значений смотрите в congig.py
+    $ export BOT_TOKEN='123456789:aBcDeEf3fdovmmcmWimldmsvklnlnNdnmNj' # Токен, полученный у @BotFather
+    $ export BOT_USERNAME='yourKawaii_bot' # Username вашего бота
+    
+    # Запускаем!
+    $ python -m pod042-bot

@@ -6,11 +6,11 @@ Main bot module.
 import logging
 import os
 import signal
+import sys
 import tempfile
 import traceback
 
 import requests
-import sys
 import telebot
 from telebot.types import Message, User
 
@@ -103,13 +103,16 @@ def main() -> int:
     fh = logging.FileHandler(os.path.join(tempfile.gettempdir(), "pod042_bot.log"))
     fh.setFormatter(formatter)
     fh.setLevel(loglevel)
-    log.addHandler(fh)
+    if config.LOG_TO_FILE:
+        log.addHandler(fh)
+        log.info("Logs path: {}".format(tempfile.gettempdir()))
     ch = logging.StreamHandler()
     ch.setFormatter(formatter)
     ch.setLevel(loglevel)
-    log.addHandler(ch)
-    log.debug("TMP path: {}".format(tempfile.gettempdir()))
+    if config.LOG_TO_STDOUT:
+        log.addHandler(ch)
 
+    log.info("Starting...")
     bot.polling(none_stop=True)
     # Block thread!
 
