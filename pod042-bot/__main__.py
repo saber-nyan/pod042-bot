@@ -16,17 +16,17 @@ from pkg_resources import resource_stream, resource_listdir
 from telebot.types import Message, User
 
 from . import config
-from .chat_state import SOUNDBOARD_JOJO, ChatState
+from .chat_state import SOUNDBOARD_JOJO, ChatState, SOUNDBOARD_GACHI
 
 """
 Словарь id пользователей.
 user.username <-> user.id
 """
-users_dict = {}
+users_dict: dict = {}
 
 """
 Словарь состояня чатов.
-msg.chat.id <-> chat_state
+msg.chat.id <-> ChatState
 """
 chat_states: dict = {}
 
@@ -51,7 +51,7 @@ def is_chat_in_state(chat_msg: Message, state_name: str) -> bool:
     :rtype: bool
     """
     chat_id = chat_msg.chat.id
-    if not chat_msg.text.startswith("/"):
+    if (chat_msg.text is not None) and (not chat_msg.text.startswith("/")):
         return False
     if chat_id in chat_states and chat_states[chat_id].started_request_name == state_name:
         return True
@@ -85,7 +85,7 @@ def bot_process_soundboard_jojo(msg: Message):
     bot_all_messages(msg)
     sound_name = msg.text[1:]  # strip '/'
     if config.BOT_USERNAME in sound_name:
-        sound_name = sound_name.replace("@" + config.BOT_USERNAME, "")
+        sound_name = sound_name.replace("@" + config.BOT_USERNAME, "")  # strip @bot name
     log.debug("Got JOJO soundboard element: {}".format(sound_name))
     if sound_name in soundboard_jojo_sounds:
         bot.send_chat_action(msg.chat.id, "record_audio")
@@ -95,7 +95,24 @@ def bot_process_soundboard_jojo(msg: Message):
         bot.send_message(msg.chat.id, "Не нашел такого ау<b>дио</b>!", parse_mode="HTML")
 
 
-# TODO: гачи
+@bot.message_handler(func=lambda msg: is_chat_in_state(msg, SOUNDBOARD_GACHI))
+def bot_process_soundboard_gachi(msg: Message):
+    """
+    Отсылает выбранный звук из `Gachimuchi`.
+
+    :param msg:
+    """
+    bot_all_messages(msg)
+    sound_name = msg.text[1:]  # strip '/'
+    if config.BOT_USERNAME in sound_name:
+        sound_name = sound_name.replace("@" + config.BOT_USERNAME, "")  # strip @bot name
+    log.debug("Got GACHI soundboard element: {}".format(sound_name))
+    if sound_name in soundboard_gachi_sounds:
+        bot.send_chat_action(msg.chat.id, "record_audio")
+        # bot.send_audio(msg.chat.id, resource_stream(config.JOJO, sound_name + '.mp3'))
+        bot.send_voice(msg.chat.id, resource_stream(config.GACHI, sound_name + '.mp3'))
+    else:
+        bot.send_message(msg.chat.id, "Не нашел такого ау<b>дио</b>!", parse_mode="HTML")
 
 
 @bot.message_handler(commands=["soundboard_jojo", ])
@@ -112,6 +129,26 @@ def bot_command_soundboard_jojo(msg: Message):
     for sound in soundboard_jojo_sounds:
         sounds_list += ("/" + sound + "\n")
     out_msg = "Вошел в режим <b>JoJo's Bizarre Adventure soundboard</b>!\n" \
+              "Напиши /abort для выхода.\n\n" \
+              "Доступные звуки:\n" \
+              "{}".format(sounds_list)
+    bot.send_message(msg.chat.id, out_msg, parse_mode="HTML")
+
+
+@bot.message_handler(commands=["soundboard_gachi", ])
+def bot_command_soundboard_gachi(msg: Message):
+    """
+    Gachimuchi soundboard
+
+    :param Message msg: сообщение
+    """
+    bot_all_messages(msg)
+    chat_id = msg.chat.id
+    chat_states[chat_id] = ChatState(SOUNDBOARD_GACHI)
+    sounds_list = ""
+    for sound in soundboard_gachi_sounds:
+        sounds_list += ("/" + sound + "\n")
+    out_msg = "Вошел в режим <b>Gachimuchi soundboard</b>!\n" \
               "Напиши /abort для выхода.\n\n" \
               "Доступные звуки:\n" \
               "{}".format(sounds_list)
@@ -217,6 +254,7 @@ def main() -> int:
         if file.endswith(".mp3"):
             soundboard_gachi_sounds.append(file[:-4])
     log.debug("got jojo sounds: {}".format(soundboard_jojo_sounds))
+    log.debug("got gachi sounds: {}".format(soundboard_gachi_sounds))
 
     log.info("Starting...")
     bot.polling(none_stop=True)
