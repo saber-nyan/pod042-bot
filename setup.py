@@ -20,7 +20,8 @@ setup(
     license='Apache 2.0',
     install_requires=[
         'pyTelegramBotAPI',
+        'vk_api',
     ],
     packages=find_packages(),
-    include_package_data = True,
+    include_package_data=True,
 )

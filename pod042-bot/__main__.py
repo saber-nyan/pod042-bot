@@ -5,6 +5,7 @@
 """
 import logging
 import os
+import re
 import signal
 import sys
 import tempfile
@@ -15,8 +16,8 @@ import telebot
 from pkg_resources import resource_stream, resource_listdir
 from telebot.types import Message, User
 
+from . import chat_state
 from . import config
-from .chat_state import SOUNDBOARD_JOJO, ChatState, SOUNDBOARD_GACHI
 
 """
 Словарь id пользователей.
@@ -33,6 +34,11 @@ chat_states: dict = {}
 soundboard_jojo_sounds: list = []
 soundboard_gachi_sounds: list = []
 
+"""
+Список групп, откуда берется контент.
+"""
+vk_groups: list = []
+
 EXIT_SUCCESS = 0
 EXIT_UNKNOWN = -256
 
@@ -41,7 +47,7 @@ log: logging.Logger = None
 bot = telebot.TeleBot(config.BOT_TOKEN, num_threads=config.NUM_THREADS)
 
 
-def is_chat_in_state(chat_msg: Message, state_name: str) -> bool:
+def chat_in_state(chat_msg: Message, state_name: str) -> bool:
     """
     Проверяет состояние указанного чата.
 
@@ -51,8 +57,8 @@ def is_chat_in_state(chat_msg: Message, state_name: str) -> bool:
     :rtype: bool
     """
     chat_id = chat_msg.chat.id
-    if (chat_msg.text is not None) and (not chat_msg.text.startswith("/")):
-        return False
+    # if (chat_msg.text is not None) and (not chat_msg.text.startswith("/")):
+    #     return False  # FIXME: зачем я это делал?
     if chat_id in chat_states and chat_states[chat_id].started_request_name == state_name:
         return True
     else:
@@ -68,19 +74,62 @@ def bot_command_abort(msg: Message):
     """
     bot_all_messages(msg)
     chat_id = msg.chat.id
-    if chat_id in chat_states and chat_states[chat_id].started_request_name != "":
-        chat_states[chat_id].started_request_name = ""
+    if (chat_id in chat_states) and (not chat_in_state(msg, chat_state.NONE)):
+        chat_states[chat_id].started_request_name = chat_state.NONE
         bot.send_message(chat_id, "Отменено.")
     else:
         bot.send_message(chat_id, "Я ничем не занят!")
 
 
-@bot.message_handler(func=lambda msg: is_chat_in_state(msg, SOUNDBOARD_JOJO))
+@bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.CONFIGURE_VK_GROUPS_ADD))
+def bot_process_configuration_vk(msg: Message):
+    """
+    Проверяет адреса и добавляет их в список групп ВК.
+
+    :param Message msg: сообщение
+    """
+    bot_all_messages(msg)
+    this_chat: chat_state.ChatState = chat_states[msg.chat.id]
+    if (msg.reply_to_message is not None and this_chat.message_id_to_reply is not None) \
+            and (msg.reply_to_message.message_id == this_chat.message_id_to_reply):
+        log.debug("Success!")
+        text = msg.text
+        group_name_regex = re.compile(r".*vk\.com/(.+?)(\?.+)?$", re.MULTILINE)
+        dead_links: list = []
+        for line in text.splitlines():
+            log.debug("line {}".format(line))
+            if not group_name_regex.match(line):
+                dead_links.append(line)
+                break
+            group_name = re.sub(group_name_regex, r"\1", line)
+            vk_groups.append(group_name)  # TODO: проверка на валидность самой группы
+            log.info("got group \"{}\"".format(group_name))
+
+        success_grps = ""
+        for entry in vk_groups:
+            success_grps += entry + "\n"
+
+        fail_grps = ""
+        for entry in dead_links:
+            fail_grps += entry + "\n"
+
+        out_msg = "<b>Попытка добавления!</b>\n" \
+                  "Для остановки напиши /abort\n\n" \
+                  "Сейчас в списке:\n" \
+                  "<code>{}</code>\n" \
+                  "Не добавлено:\n" \
+                  "<code>{}</code>".format(success_grps, fail_grps)
+        bot.send_message(msg.chat.id, out_msg, parse_mode="HTML")
+    else:
+        log.debug("failure")
+
+
+@bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.SOUNDBOARD_JOJO) and msg.text.startswith("/"))
 def bot_process_soundboard_jojo(msg: Message):
     """
     Отсылает выбранный звук из `JoJo's Bizarre Adventure`.
 
-    :param msg:
+    :param Message msg: сообщение
     """
     bot_all_messages(msg)
     sound_name = msg.text[1:]  # strip '/'
@@ -89,18 +138,17 @@ def bot_process_soundboard_jojo(msg: Message):
     log.debug("Got JOJO soundboard element: {}".format(sound_name))
     if sound_name in soundboard_jojo_sounds:
         bot.send_chat_action(msg.chat.id, "record_audio")
-        # bot.send_audio(msg.chat.id, resource_stream(config.JOJO, sound_name + '.mp3'))
         bot.send_voice(msg.chat.id, resource_stream(config.JOJO, sound_name + '.mp3'))
     else:
         bot.send_message(msg.chat.id, "Не нашел такого ау<b>дио</b>!", parse_mode="HTML")
 
 
-@bot.message_handler(func=lambda msg: is_chat_in_state(msg, SOUNDBOARD_GACHI))
+@bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.SOUNDBOARD_GACHI) and msg.text.startswith("/"))
 def bot_process_soundboard_gachi(msg: Message):
     """
     Отсылает выбранный звук из `Gachimuchi`.
 
-    :param msg:
+    :param Message msg: сообщение
     """
     bot_all_messages(msg)
     sound_name = msg.text[1:]  # strip '/'
@@ -109,10 +157,61 @@ def bot_process_soundboard_gachi(msg: Message):
     log.debug("Got GACHI soundboard element: {}".format(sound_name))
     if sound_name in soundboard_gachi_sounds:
         bot.send_chat_action(msg.chat.id, "record_audio")
-        # bot.send_audio(msg.chat.id, resource_stream(config.JOJO, sound_name + '.mp3'))
         bot.send_voice(msg.chat.id, resource_stream(config.GACHI, sound_name + '.mp3'))
     else:
         bot.send_message(msg.chat.id, "Не нашел такого ау<b>дио</b>!", parse_mode="HTML")
+
+
+@bot.message_handler(commands=['add', ])
+def bot_command_configuration_vk_add(msg: Message):
+    """
+    Переводит бота в режим добавления групп ВК, если находится в правильном состоянии.
+
+    :param Message msg: сообщение
+    """
+    if chat_in_state(msg, chat_state.CONFIGURE_VK_GROUPS):
+        out_msg = "<b>Reply`ем на это сообщение</b> напишите адреса <b>публичных</b> сообществ ВК, " \
+                  "по одному на строку.\n" \
+                  "<i>Желательно без мусорных знаков...</i>"
+        sent_msg = bot.send_message(msg.chat.id, out_msg, parse_mode="HTML")
+        chat_states[msg.chat.id] = chat_state.ChatState(chat_state.CONFIGURE_VK_GROUPS_ADD, sent_msg.message_id)
+
+
+@bot.message_handler(commands=["clear", ])
+def bot_command_configuration_vk_clear(msg: Message):
+    """
+    Очищает список групп ВК, если находится в правильном состоянии.
+
+    :param Message msg: сообщение
+    """
+    if chat_in_state(msg, chat_state.CONFIGURE_VK_GROUPS):
+        vk_groups.clear()
+        chat_states[msg.chat.id] = chat_state.ChatState(chat_state.NONE)
+        bot.send_message(msg.chat.id, "Выполнено, вернулся в основной режим.")
+
+
+@bot.message_handler(commands=["config_vk", ])
+def bot_command_configuration_vk(msg: Message):
+    """
+    Запускает настройку сообществ `vk.com`.
+
+    :param Message msg: сообщение
+    """
+    bot_all_messages(msg)
+    chat_id = msg.chat.id
+    chat_states[chat_id] = chat_state.ChatState(chat_state.CONFIGURE_VK_GROUPS)
+
+    grps = ""
+    for entry in vk_groups:
+        grps += entry + "\n"
+
+    out_msg = "Вошел в режим <b>Конфигурация модуля ВКонтакте</b>!\n" \
+              "/add — добавление групп\n" \
+              "/clear — очистка списка\n" \
+              "/abort — отмена\n\n" \
+              "Сейчас в списке:\n" \
+              "<code>{}</code>\n".format(grps)
+    bot.send_message(chat_id, out_msg, parse_mode="HTML")
 
 
 @bot.message_handler(commands=["soundboard_jojo", ])
@@ -124,7 +223,7 @@ def bot_command_soundboard_jojo(msg: Message):
     """
     bot_all_messages(msg)
     chat_id = msg.chat.id
-    chat_states[chat_id] = ChatState(SOUNDBOARD_JOJO)
+    chat_states[chat_id] = chat_state.ChatState(chat_state.SOUNDBOARD_JOJO)
     sounds_list = ""
     for sound in soundboard_jojo_sounds:
         sounds_list += ("/" + sound + "\n")
@@ -132,7 +231,7 @@ def bot_command_soundboard_jojo(msg: Message):
               "Напиши /abort для выхода.\n\n" \
               "Доступные звуки:\n" \
               "{}".format(sounds_list)
-    bot.send_message(msg.chat.id, out_msg, parse_mode="HTML")
+    bot.send_message(chat_id, out_msg, parse_mode="HTML")
 
 
 @bot.message_handler(commands=["soundboard_gachi", ])
@@ -144,7 +243,7 @@ def bot_command_soundboard_gachi(msg: Message):
     """
     bot_all_messages(msg)
     chat_id = msg.chat.id
-    chat_states[chat_id] = ChatState(SOUNDBOARD_GACHI)
+    chat_states[chat_id] = chat_state.ChatState(chat_state.SOUNDBOARD_GACHI)
     sounds_list = ""
     for sound in soundboard_gachi_sounds:
         sounds_list += ("/" + sound + "\n")
@@ -152,7 +251,7 @@ def bot_command_soundboard_gachi(msg: Message):
               "Напиши /abort для выхода.\n\n" \
               "Доступные звуки:\n" \
               "{}".format(sounds_list)
-    bot.send_message(msg.chat.id, out_msg, parse_mode="HTML")
+    bot.send_message(chat_id, out_msg, parse_mode="HTML")
 
 
 @bot.message_handler(commands=["codfish", ])
@@ -164,13 +263,6 @@ def bot_command_codfish(msg: Message):
     """
     bot_all_messages(msg)
     chat_id = msg.chat.id
-    if chat_id in chat_states and chat_states[chat_id].started_request_name != "":
-        bot.send_message(chat_id, "Сейчас я занят обработкой комманды <code>{}</code>.\n"
-                                  "Для отмены напииши /abort!".format(chat_states[chat_id]
-                                                                      .started_request_name),
-                         parse_mode="HTML")
-        return
-
     text = msg.text.replace("@", "")  # Sometimes `lolbot` is written as `@lolbot`
     words = text.split()
     username = words[-1]  # Get username from orig. message
