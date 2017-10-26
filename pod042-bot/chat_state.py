@@ -3,6 +3,9 @@
 Используется в сложных коммандах, состоящих
 из нескольких шагов.
 """
+import typing
+
+from .vk_group import VkGroup
 
 NONE = ""
 SOUNDBOARD_JOJO = "JoJo's Bizarre Adventure soundboard"
@@ -21,17 +24,27 @@ class ChatState:
     Если строка пуста -- запрос не запущен. 
     Для отмены используется ``/abort``.
     """
-    started_request_name: str = NONE
+    state_name: str = NONE
 
     """
     ID сообщения, на которое необходим ответить для добавления групп ВК.
     """
     message_id_to_reply = None
 
-    def __init__(self, started_request_name, message_id_to_reply=None):
+    """
+    Список групп, откуда берется контент.
+    group_name <-> VkGroup
+    """
+    vk_groups: typing.List[VkGroup] = []
+
+    def __init__(self, state_name: str, message_id_to_reply=None, vk_groups=None):
         """
-        :param started_request_name: Название запущенного запроса. Если строка пуста -- запрос не запущен.
+        :param str state_name: Название запущенного запроса. Если строка пуста -- запрос не запущен.
         :param message_id_to_reply: ID сообщения, на которое необходим ответить для добавления групп ВК.
+        :param typing.List[VkGroup] vk_groups: Список групп, откуда берется контент.
         """
-        self.started_request_name = started_request_name
+        if vk_groups is None:
+            vk_groups = []
+        self.state_name = state_name
         self.message_id_to_reply = message_id_to_reply
+        self.vk_groups = vk_groups
