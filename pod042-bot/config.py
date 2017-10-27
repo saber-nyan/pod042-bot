@@ -12,7 +12,7 @@ import sys
 try:
     BOT_TOKEN = os.environ['BOT_TOKEN']  # Токен, полученный у @BotFather.
     VK_LOGIN = os.environ['VK_LOGIN']  # Угу, ваш (или фейка) логин ВКонтакте. Лучше телефон.
-    VK_PASSWORD = os.environ['VK_PASSWORD']  # Да, по друшому никак. Проверено.
+    VK_PASSWORD = os.environ['VK_PASSWORD']  # Да, по другому никак. Проверено.
     BOT_USERNAME = os.environ['BOT_USERNAME']  # Username бота.
 except:
     print('Please set needed env variables!\nRead more in config.py.', file=sys.stderr)
