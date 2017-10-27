@@ -5,7 +5,10 @@
 """
 import typing
 
-from .vk_group import VkGroup
+try:
+    from .vk_group import VkGroup
+except ImportError:
+    from vk_group import VkGroup
 
 NONE = ""
 SOUNDBOARD_JOJO = "JoJo's Bizarre Adventure soundboard"

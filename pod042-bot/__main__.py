@@ -5,6 +5,7 @@
 """
 import logging
 import os
+import random
 import re
 import signal
 import sys
@@ -18,9 +19,14 @@ from pkg_resources import resource_stream, resource_listdir
 from telebot.types import Message, User
 from vk_api import vk_api
 
-from . import chat_state
-from . import config
-from . import vk_group
+try:
+    from . import chat_state
+    from . import config
+    from . import vk_group
+except ImportError:
+    import chat_state
+    import config
+    import vk_group
 
 """
 Словарь id пользователей.
@@ -43,7 +49,9 @@ EXIT_UNKNOWN = -256
 log: logging.Logger = None
 
 bot = telebot.TeleBot(config.BOT_TOKEN, num_threads=config.NUM_THREADS)
-vk = vk_api.VkApi().get_api()
+vk_session = vk_api.VkApi(login=config.VK_LOGIN, password=config.VK_PASSWORD)
+vk_session.auth()
+vk = vk_session.get_api()
 
 
 def chat_in_state(chat_msg: Message, state_name: str) -> bool:
@@ -56,8 +64,6 @@ def chat_in_state(chat_msg: Message, state_name: str) -> bool:
     :rtype: bool
     """
     chat_id = chat_msg.chat.id
-    # if (chat_msg.text is not None) and (not chat_msg.text.startswith("/")):
-    #     return False  # FIXME: зачем я это делал?
     if chat_id in chat_states and chat_states[chat_id].state_name == state_name:
         return True
     else:
@@ -232,6 +238,43 @@ def bot_command_configuration_vk(msg: Message):
     bot.send_message(chat_id, out_msg, parse_mode="HTML")
 
 
+@bot.message_handler(commands=["vk_pic", ])
+def bot_command_vk_pic(msg: Message):
+    """
+    Посылает рандомную картинку из списка сообществ.
+
+    :param Message msg: сообщение
+    """
+    bot_all_messages(msg)
+    chat_id = msg.chat.id
+    if (chat_id not in chat_states) or (len(chat_states[chat_id].vk_groups) == 0):
+        bot.send_message(chat_id, "Сначала настройте группы с помощью /config_vk")
+        return
+    chosen_group: vk_group.VkGroup = random.choice(chat_states[chat_id].vk_groups)
+    log.debug("selected {} as source".format(chosen_group))
+    response = vk.wall.get(domain=chosen_group.url_name, count=100, fields="attachments", version=5.68)
+    chosen = False
+    while not chosen:
+        chosen_post: dict = random.choice(response["items"])
+        log.info("chosen {}!".format(chosen_post))
+        if chosen_post["marked_as_ads"] == 1:
+            chosen = False
+            log.debug("skip (ad)")
+            continue
+        if "attachments" not in chosen_post:
+            chosen = False
+            log.debug("skip (attach)")
+            continue
+        for attach in chosen_post["attachments"]:
+            if "photo" in attach:
+                log.info("found!")
+                url75 = attach["photo"]["photo_75"]
+                log.info("got 75 {}".format(url75))
+                chosen = True
+                break
+    bot.send_message(chat_id, "test_75: {}".format(url75))
+
+
 @bot.message_handler(commands=["soundboard_jojo", ])
 def bot_command_soundboard_jojo(msg: Message):
     """
@@ -369,8 +412,6 @@ def main() -> int:
     for file in resource_listdir(config.GACHI, ""):
         if file.endswith(".mp3"):
             soundboard_gachi_sounds.append(file[:-4])
-    log.debug("got jojo sounds: {}".format(soundboard_jojo_sounds))
-    log.debug("got gachi sounds: {}".format(soundboard_gachi_sounds))
 
     log.info("init vk test...")
     response = vk.groups.getById(group_id="team", fields="id", version=5.68)
