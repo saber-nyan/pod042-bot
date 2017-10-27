@@ -22,7 +22,7 @@ NUM_THREADS = os.getenv('BOT_THREADS', 16)  # Кол-во потоков обр�
 
 logfmt_default = '%(asctime)s (%(filename)s:%(lineno)d %(threadName)s) %(levelname)s - %(name)s: %(message)s'
 LOG_FORMAT = os.getenv('BOT_LOG_FORMAT', logfmt_default)  # Формат лога.
-LOG_LEVEL = logging.DEBUG  # Уровень лога.
+LOG_LEVEL = logging.INFO  # Уровень лога.
 
 # Логгировать в вывод? (Просто объявите переменную окружения)
 LOG_TO_STDOUT = (False if 'LOG_TO_STDOUT_DISABLE' in os.environ else True)

@@ -253,6 +253,8 @@ def bot_command_vk_pic(msg: Message):
     chosen_group: vk_group.VkGroup = random.choice(chat_states[chat_id].vk_groups)
     log.debug("selected {} as source".format(chosen_group))
     response = vk.wall.get(domain=chosen_group.url_name, count=100, fields="attachments", version=5.68)
+    photo_attach_regex = re.compile(r"photo_(\d+)")
+    max_size_url = "ERROR"
     chosen = False
     while not chosen:
         chosen_post: dict = random.choice(response["items"])
@@ -268,11 +270,20 @@ def bot_command_vk_pic(msg: Message):
         for attach in chosen_post["attachments"]:
             if "photo" in attach:
                 log.info("found!")
-                url75 = attach["photo"]["photo_75"]
-                log.info("got 75 {}".format(url75))
+                photo_attach = attach["photo"]
+                log.info("attach {}".format(photo_attach))
+                max_size = 75
+                for key in photo_attach:
+                    value = photo_attach[key]
+                    log.debug("<{}> -> {}".format(key, value))
+                    if photo_attach_regex.match(key):
+                        size = int(re.sub(photo_attach_regex, r"\1", key))
+                        if size > max_size:
+                            max_size = size
+                max_size_url = photo_attach["photo_" + str(max_size)]
                 chosen = True
                 break
-    bot.send_message(chat_id, "test_75: {}".format(url75))
+    bot.send_message(chat_id, "Got fullres!\n{}".format(max_size_url))
 
 
 @bot.message_handler(commands=["soundboard_jojo", ])
