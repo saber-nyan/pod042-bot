@@ -15,6 +15,7 @@ import typing
 
 import requests
 import telebot
+from bs4 import BeautifulSoup
 from pkg_resources import resource_stream, resource_listdir
 from telebot.types import Message, User
 from vk_api import vk_api
@@ -403,6 +404,23 @@ def bot_command_quote(msg: Message):
     bot_all_messages(msg)
     quote = requests.get("https://tproger.ru/wp-content/plugins/citation-widget/getQuotes.php").text
     bot.send_message(msg.chat.id, "<code>{}</code>".format(quote), parse_mode="HTML")
+
+
+@bot.message_handler(commands=["anek", ])
+def bot_command_anek(msg: Message):
+    """
+    Посылает рандомный анекдот с `baneks.ru`.
+
+    :param Message msg: сообщение
+    """
+    bot_all_messages(msg)
+    request = requests.get("https://baneks.ru/{}".format(random.randrange(1, 1142)))
+    request.encoding = "utf-8"
+    html_text = request.text
+    parsed = BeautifulSoup(html_text, "html.parser")
+    anek_meta_title = parsed.find("meta", attrs={"name": "description", })
+    out_msg = anek_meta_title["content"] if anek_meta_title else "ERROR"
+    bot.send_message(msg.chat.id, "<code>{}</code>".format(out_msg), parse_mode="HTML")
 
 
 @bot.message_handler(func=lambda msg: True)
