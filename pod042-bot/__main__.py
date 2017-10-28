@@ -86,6 +86,15 @@ def bot_command_abort(msg: Message):
         bot.send_message(chat_id, "Я ничем не занят!")
 
 
+@bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.WHATANIME))
+def bot_process_whatanime(msg: Message):
+    """
+    Ищет скриншот из аниме с помощью `whatanime.ga`.
+
+    :param Message msg: сообщение
+    """
+
+
 @bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.CONFIGURE_VK_GROUPS_ADD))
 def bot_process_configuration_vk(msg: Message):
     """
@@ -258,7 +267,7 @@ def bot_command_vk_pic(msg: Message):
     chosen = False
     while not chosen:
         chosen_post: dict = random.choice(response["items"])
-        log.info("chosen {}!".format(chosen_post))
+        log.debug("chosen {}!".format(chosen_post))
         if chosen_post["marked_as_ads"] == 1:
             chosen = False
             log.debug("skip (ad)")
@@ -283,7 +292,8 @@ def bot_command_vk_pic(msg: Message):
                 max_size_url = photo_attach["photo_" + str(max_size)]
                 chosen = True
                 break
-    bot.send_message(chat_id, "Got fullres!\n{}".format(max_size_url))
+    bot.send_message(chat_id, "{}\n"
+                              "Из https://vk.com/{}".format(max_size_url, chosen_group.url_name))
 
 
 @bot.message_handler(commands=["soundboard_jojo", ])
@@ -332,6 +342,26 @@ def bot_command_soundboard_gachi(msg: Message):
     bot.send_message(chat_id, out_msg, parse_mode="HTML")
 
 
+@bot.message_handler(commands=["whatanime", ])
+def bot_command_whatanime(msg: Message):
+    """
+    Входит в режим поиска аниме по скриншоту (спасибо whatanime.ga за API)
+
+    :param Message msg: сообщение
+    """
+    bot_all_messages(msg)
+    chat_id = msg.chat.id
+    if chat_id in chat_states:
+        chat_states[chat_id].state_name = chat_state.WHATANIME
+        chat_states[chat_id].message_id_to_reply = msg.message_id
+    else:
+        chat_states[chat_id] = chat_state.ChatState(chat_state.WHATANIME, message_id_to_reply=msg.message_id)
+    out_msg = "Вошел в режим <b>whatanime.ga: поиск аниме</b>!\n" \
+              "Напиши /abort для выхода.\n\n" \
+              "Для поиска <b>Reply</b>`ни на это сообщение с картинкой или ссылкой (WIP)."
+    bot.send_message(chat_id, out_msg, parse_mode="HTML")
+
+
 @bot.message_handler(commands=["codfish", ])
 def bot_command_codfish(msg: Message):
     """
@@ -361,6 +391,18 @@ def bot_command_codfish(msg: Message):
                        .format(user_first_name))
     else:  # Unknown
         bot.send_message(chat_id, "Извини, пока не знаю <b>{}</b>...".format(username), parse_mode="HTML")
+
+
+@bot.message_handler(commands=["quote", ])
+def bot_command_quote(msg: Message):
+    """
+    Посылает рандомную цитату с `tproger.ru`.
+
+    :param Message msg: сообщение
+    """
+    bot_all_messages(msg)
+    quote = requests.get("https://tproger.ru/wp-content/plugins/citation-widget/getQuotes.php").text
+    bot.send_message(msg.chat.id, "<code>{}</code>".format(quote), parse_mode="HTML")
 
 
 @bot.message_handler(func=lambda msg: True)

@@ -11,6 +11,7 @@ except ImportError:
     from vk_group import VkGroup
 
 NONE = ""
+WHATANIME = "whatanime.ga: поиск аниме"
 SOUNDBOARD_JOJO = "JoJo's Bizarre Adventure soundboard"
 SOUNDBOARD_GACHI = "Gachimuchi soundboard"
 CONFIGURE_VK_GROUPS = "Конфигурация модуля ВКонтакте"
@@ -30,7 +31,7 @@ class ChatState:
     state_name: str = NONE
 
     """
-    ID сообщения, на которое необходим ответить для добавления групп ВК.
+    ID сообщения, на которое необходим ответить для действия.
     """
     message_id_to_reply = None
 
@@ -43,7 +44,7 @@ class ChatState:
     def __init__(self, state_name: str, message_id_to_reply=None, vk_groups=None):
         """
         :param str state_name: Название запущенного запроса. Если строка пуста -- запрос не запущен.
-        :param message_id_to_reply: ID сообщения, на которое необходим ответить для добавления групп ВК.
+        :param message_id_to_reply: ID сообщения, на которое необходим ответить для действия.
         :param typing.List[VkGroup] vk_groups: Список групп, откуда берется контент.
         """
         if vk_groups is None:
