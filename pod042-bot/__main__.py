@@ -19,6 +19,7 @@ from bs4 import BeautifulSoup
 from pkg_resources import resource_stream, resource_listdir
 from telebot.types import Message, User
 from vk_api import vk_api
+from vk_api.vk_api import VkApiMethod
 
 try:
     from . import chat_state
@@ -33,7 +34,7 @@ except ImportError:
 Словарь id пользователей.
 user.username <-> user.id
 """
-users_dict: dict = {}
+users_dict: typing.Dict[str, int] = {}
 
 """
 Словарь состояня чатов.
@@ -50,9 +51,8 @@ EXIT_UNKNOWN = -256
 log: logging.Logger = None
 
 bot = telebot.TeleBot(config.BOT_TOKEN, num_threads=config.NUM_THREADS)
-vk_session = vk_api.VkApi(login=config.VK_LOGIN, password=config.VK_PASSWORD)
-vk_session.auth()
-vk = vk_session.get_api()
+vk: VkApiMethod = None
+is_vk_enabled = False
 
 
 def chat_in_state(chat_msg: Message, state_name: str) -> bool:
@@ -80,7 +80,7 @@ def bot_command_abort(msg: Message):
     """
     bot_all_messages(msg)
     chat_id = msg.chat.id
-    if (chat_id in chat_states) and (not chat_in_state(msg, chat_state.NONE)):
+    if not chat_in_state(msg, chat_state.NONE):
         chat_states[chat_id].state_name = chat_state.NONE
         bot.send_message(chat_id, "Отменено.")
     else:
@@ -94,6 +94,7 @@ def bot_process_whatanime(msg: Message):
 
     :param Message msg: сообщение
     """
+    bot_all_messages(msg)
 
 
 @bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.CONFIGURE_VK_GROUPS_ADD))
@@ -117,11 +118,11 @@ def bot_process_configuration_vk(msg: Message):
                 dead_links.append(line)
                 break
             group_name: str = re.sub(group_name_regex, r"\1", line)
-            log.info("got group \"{}\"...".format(group_name))
+            log.debug("got group \"{}\"...".format(group_name))
             try:
                 response = vk.groups.getById(group_id=group_name, fields="id", version=5.68)
             except (vk_api.ApiError, vk_api.ApiHttpError) as err:
-                log.warning("...but request failed ({})".format(err))
+                log.info("...but request failed ({})".format(err))
                 dead_links.append(line)
                 break
             log.debug("...and vk response:\n"
@@ -193,17 +194,15 @@ def bot_command_configuration_vk_add(msg: Message):
 
     :param Message msg: сообщение
     """
+    bot_all_messages(msg)
     if chat_in_state(msg, chat_state.CONFIGURE_VK_GROUPS):
         out_msg = "<b>Reply`ем на это сообщение</b> напишите адреса <b>публичных</b> сообществ ВК, " \
                   "по одному на строку.\n" \
                   "<i>Желательно без мусорных знаков...</i>"
         chat_id = msg.chat.id
         sent_msg = bot.send_message(chat_id, out_msg, parse_mode="HTML")
-        if chat_id in chat_states:
-            chat_states[chat_id].state_name = chat_state.CONFIGURE_VK_GROUPS_ADD
-            chat_states[chat_id].message_id_to_reply = sent_msg.message_id
-        else:
-            chat_states[chat_id] = chat_state.ChatState(chat_state.CONFIGURE_VK_GROUPS_ADD, sent_msg.message_id)
+        chat_states[chat_id].state_name = chat_state.CONFIGURE_VK_GROUPS_ADD
+        chat_states[chat_id].message_id_to_reply = sent_msg.message_id
 
 
 @bot.message_handler(commands=["clear", ])
@@ -213,12 +212,12 @@ def bot_command_configuration_vk_clear(msg: Message):
 
     :param Message msg: сообщение
     """
+    bot_all_messages(msg)
     if chat_in_state(msg, chat_state.CONFIGURE_VK_GROUPS):
         chat_id = msg.chat.id
-        if chat_id in chat_states:
-            chat_states[chat_id].vk_groups.clear()
-            chat_states[chat_id].state_name = chat_state.NONE
-            bot.send_message(chat_id, "Выполнено, вернулся в основной режим.")
+        chat_states[chat_id].vk_groups.clear()
+        chat_states[chat_id].state_name = chat_state.NONE
+        bot.send_message(chat_id, "Выполнено, вернулся в основной режим.")
 
 
 @bot.message_handler(commands=["config_vk", ])
@@ -230,14 +229,14 @@ def bot_command_configuration_vk(msg: Message):
     """
     bot_all_messages(msg)
     chat_id = msg.chat.id
+    if not is_vk_enabled:
+        bot.send_message(chat_id, "Модуль ВКонтакте отключен.")
+        return
     grps_str = ""
-    if chat_id in chat_states:
-        chat_states[chat_id].state_name = chat_state.CONFIGURE_VK_GROUPS
-        grps = chat_states[chat_id].vk_groups
-        for entry in grps:
-            grps_str += entry.__str__() + "\n"
-    else:
-        chat_states[chat_id] = chat_state.ChatState(chat_state.CONFIGURE_VK_GROUPS)
+    chat_states[chat_id].state_name = chat_state.CONFIGURE_VK_GROUPS
+    grps = chat_states[chat_id].vk_groups
+    for entry in grps:
+        grps_str += entry.__str__() + "\n"
 
     out_msg = "Вошел в режим <b>Конфигурация модуля ВКонтакте</b>!\n" \
               "/add — добавление групп\n" \
@@ -257,7 +256,10 @@ def bot_command_vk_pic(msg: Message):
     """
     bot_all_messages(msg)
     chat_id = msg.chat.id
-    if (chat_id not in chat_states) or (len(chat_states[chat_id].vk_groups) == 0):
+    if not is_vk_enabled:
+        bot.send_message(chat_id, "Модуль ВКонтакте отключен.")
+        return
+    if len(chat_states[chat_id].vk_groups) == 0:
         bot.send_message(chat_id, "Сначала настройте группы с помощью /config_vk")
         return
     chosen_group: vk_group.VkGroup = random.choice(chat_states[chat_id].vk_groups)
@@ -281,7 +283,7 @@ def bot_command_vk_pic(msg: Message):
             if "photo" in attach:
                 log.info("found!")
                 photo_attach = attach["photo"]
-                log.info("attach {}".format(photo_attach))
+                log.debug("attach {}".format(photo_attach))
                 max_size = 75
                 for key in photo_attach:
                     value = photo_attach[key]
@@ -306,10 +308,7 @@ def bot_command_soundboard_jojo(msg: Message):
     """
     bot_all_messages(msg)
     chat_id = msg.chat.id
-    if chat_id in chat_states:
-        chat_states[chat_id].state_name = chat_state.SOUNDBOARD_JOJO
-    else:
-        chat_states[chat_id] = chat_state.ChatState(chat_state.SOUNDBOARD_JOJO)
+    chat_states[chat_id].state_name = chat_state.SOUNDBOARD_JOJO
     sounds_list = ""
     for sound in soundboard_jojo_sounds:
         sounds_list += ("/" + sound + "\n")
@@ -329,10 +328,7 @@ def bot_command_soundboard_gachi(msg: Message):
     """
     bot_all_messages(msg)
     chat_id = msg.chat.id
-    if chat_id in chat_states:
-        chat_states[chat_id].state_name = chat_state.SOUNDBOARD_GACHI
-    else:
-        chat_states[chat_id] = chat_state.ChatState(chat_state.SOUNDBOARD_GACHI)
+    chat_states[chat_id].state_name = chat_state.SOUNDBOARD_GACHI
     sounds_list = ""
     for sound in soundboard_gachi_sounds:
         sounds_list += ("/" + sound + "\n")
@@ -352,11 +348,8 @@ def bot_command_whatanime(msg: Message):
     """
     bot_all_messages(msg)
     chat_id = msg.chat.id
-    if chat_id in chat_states:
-        chat_states[chat_id].state_name = chat_state.WHATANIME
-        chat_states[chat_id].message_id_to_reply = msg.message_id
-    else:
-        chat_states[chat_id] = chat_state.ChatState(chat_state.WHATANIME, message_id_to_reply=msg.message_id)
+    chat_states[chat_id].state_name = chat_state.WHATANIME
+    chat_states[chat_id].message_id_to_reply = msg.message_id
     out_msg = "Вошел в режим <b>whatanime.ga: поиск аниме</b>!\n" \
               "Напиши /abort для выхода.\n\n" \
               "Для поиска <b>Reply</b>`ни на это сообщение с картинкой или ссылкой (WIP)."
@@ -417,16 +410,19 @@ def bot_command_anek(msg: Message):
     request = requests.get("https://baneks.ru/{}".format(random.randrange(1, 1142)))
     request.encoding = "utf-8"
     html_text = request.text
+    # log.debug("full response:\n{}".format(html_text))
     parsed = BeautifulSoup(html_text, "html.parser")
+    # TODO: сервер отдает данные без экранирования кавычек...
     anek_meta_title = parsed.find("meta", attrs={"name": "description", })
     out_msg = anek_meta_title["content"] if anek_meta_title else "ERROR"
+    # log.debug("ready to send, contents:\n{}".format(out_msg))
     bot.send_message(msg.chat.id, "<code>{}</code>".format(out_msg), parse_mode="HTML")
 
 
 @bot.message_handler(func=lambda msg: True)
 def bot_all_messages(msg: Message):
     """
-    Метод для заполнения :var:`users_dict`.
+    Метод для заполнения :var:`users_dict` и инициализации состояния чатов.
     Обрабатывает любые сообщения.
 
     :param Message msg: сообщение
@@ -437,6 +433,12 @@ def bot_all_messages(msg: Message):
         users_dict[user.username] = user.id
     else:
         log.debug("user known")
+    chat_id = msg.chat.id
+    if chat_id not in chat_states:
+        log.debug("chat not known")
+        chat_states[chat_id] = chat_state.ChatState(chat_state.NONE)
+    else:
+        log.debug("chat known")
 
 
 # noinspection PyUnusedLocal
@@ -461,17 +463,17 @@ def main() -> int:
     global log
     log = logging.getLogger()
     log.setLevel(loglevel)
-    fh = logging.FileHandler(os.path.join(tempfile.gettempdir(), "pod042_bot.log"))
-    fh.setFormatter(formatter)
-    fh.setLevel(loglevel)
+    if config.LOG_TO_STDOUT:
+        ch = logging.StreamHandler()
+        ch.setFormatter(formatter)
+        ch.setLevel(loglevel)
+        log.addHandler(ch)
     if config.LOG_TO_FILE:
+        fh = logging.FileHandler(os.path.join(tempfile.gettempdir(), "pod042_bot.log"))
+        fh.setFormatter(formatter)
+        fh.setLevel(loglevel)
         log.addHandler(fh)
         log.info("Logs path: {}".format(tempfile.gettempdir()))
-    ch = logging.StreamHandler()
-    ch.setFormatter(formatter)
-    ch.setLevel(loglevel)
-    if config.LOG_TO_STDOUT:
-        log.addHandler(ch)
 
     # Prepare resources
     global soundboard_jojo_sounds
@@ -484,9 +486,23 @@ def main() -> int:
         if file.endswith(".mp3"):
             soundboard_gachi_sounds.append(file[:-4])
 
-    log.info("init vk test...")
-    response = vk.groups.getById(group_id="team", fields="id", version=5.68)
-    log.info("success! response:\n\t{}".format(response))
+    try:
+        log.info("vk init...")
+        vk_session = vk_api.VkApi(login=config.VK_LOGIN, password=config.VK_PASSWORD)
+        vk_session.auth()
+        global vk
+        vk = vk_session.get_api()
+        log.info("...success!")
+
+        log.info("vk test...")
+        response = vk.groups.getById(group_id="team", fields="id", version=5.68)
+        log.info("...success!")
+        log.debug("With response: {}".format(response))
+        global is_vk_enabled
+        is_vk_enabled = True
+    except Exception as exc:
+        log.error("...failure! Reason: {}, VK disabled".format(exc))
+        log.debug("With trace:\n{}".format(traceback.format_exc()))
 
     log.info("Starting...")
     bot.polling(none_stop=True)
@@ -504,10 +520,12 @@ if __name__ == '__main__':
     while True:
         # noinspection PyBroadException
         try:
-            sys.exit(main())  # Return exit code to shell
-            # main()
+            sys.exit(main())
         except Exception as e:
-            print("Unknown exception was raised!\n"
-                  "{}".format(traceback.format_exc()))
-            # bot = telebot.TeleBot(config.BOT_TOKEN, num_threads=config.NUM_THREADS)
+            e_str = "Unknown exception was raised!\n" \
+                    "{}".format(traceback.format_exc())
+            if log is not None:
+                log.critical(e_str)
+            else:
+                print(e_str)
             sys.exit(EXIT_UNKNOWN)

@@ -11,12 +11,13 @@ import sys
 # noinspection PyBroadException
 try:
     BOT_TOKEN = os.environ['BOT_TOKEN']  # Токен, полученный у @BotFather.
-    VK_LOGIN = os.environ['VK_LOGIN']  # Угу, ваш (или фейка) логин ВКонтакте. Лучше телефон.
-    VK_PASSWORD = os.environ['VK_PASSWORD']  # Да, по другому никак. Проверено.
     BOT_USERNAME = os.environ['BOT_USERNAME']  # Username бота.
 except:
     print('Please set needed env variables!\nRead more in config.py.', file=sys.stderr)
     sys.exit(-1)
+
+VK_LOGIN = os.getenv('VK_LOGIN', None)  # Угу, ваш (или фейка) логин ВКонтакте. Лучше телефон.
+VK_PASSWORD = os.getenv('VK_PASSWORD', None)  # Да, по другому никак. Проверено.
 
 NUM_THREADS = os.getenv('BOT_THREADS', 16)  # Кол-во потоков обработки запросов.
 
@@ -24,7 +25,7 @@ logfmt_default = '%(asctime)s (%(filename)s:%(lineno)d %(threadName)s) %(levelna
 LOG_FORMAT = os.getenv('BOT_LOG_FORMAT', logfmt_default)  # Формат лога.
 LOG_LEVEL = logging.INFO  # Уровень лога.
 
-# Логгировать в вывод? (Просто объявите переменную окружения)
+# Логгировать в вывод? (Просто объявите переменную окружения 'LOG_TO_STDOUT_DISABLE')
 LOG_TO_STDOUT = (False if 'LOG_TO_STDOUT_DISABLE' in os.environ else True)
 
 # Логгировать в файл?

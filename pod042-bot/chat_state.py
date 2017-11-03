@@ -39,7 +39,7 @@ class ChatState:
     Список групп, откуда берется контент.
     group_name <-> VkGroup
     """
-    vk_groups: typing.List[VkGroup] = []
+    vk_groups: typing.List[VkGroup] = ["https://vk.com/seifuku_blog", ]  # 10/10 азиаточки
 
     def __init__(self, state_name: str, message_id_to_reply=None, vk_groups=None):
         """
@@ -48,7 +48,7 @@ class ChatState:
         :param typing.List[VkGroup] vk_groups: Список групп, откуда берется контент.
         """
         if vk_groups is None:
-            vk_groups = []
+            vk_groups = ["https://vk.com/seifuku_blog", ]
         self.state_name = state_name
         self.message_id_to_reply = message_id_to_reply
         self.vk_groups = vk_groups
