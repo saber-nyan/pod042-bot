@@ -3,21 +3,23 @@
 """
 Основной модуль бота.
 """
+import io
 import logging
 import os
+import pickle
 import random
 import re
 import signal
 import sys
-import tempfile
 import traceback
 import typing
+from datetime import datetime
+from pathlib import Path
 
 import requests
 import telebot
-from bs4 import BeautifulSoup
 from pkg_resources import resource_stream, resource_listdir
-from telebot.types import Message, User
+from telebot.types import Message, User, Chat
 from vk_api import vk_api, VkTools
 from vk_api.vk_api import VkApiMethod
 
@@ -45,10 +47,15 @@ chat_states: typing.Dict[int, chat_state.ChatState] = {}
 soundboard_jojo_sounds: list = []
 soundboard_gachi_sounds: list = []
 
-EXIT_SUCCESS = 0
-EXIT_UNKNOWN = -256
+"""
+Словарь файлов для полного логгирования чатов.
+msg.chat.id <-> file stream (io.StringIO)
+"""
+messages_log_files: typing.Dict[int, io.StringIO] = {}
 
 log: logging.Logger = None
+
+root_path = os.path.join(Path.home(), ".pod042-bot")
 
 bot = telebot.TeleBot(config.BOT_TOKEN, num_threads=config.NUM_THREADS)
 vk: VkApiMethod = None
@@ -56,6 +63,13 @@ vk_tools: VkTools = None
 vk_disabled = True
 
 VK_VER = 5.69
+
+VK_PHOTO_ATTACH_REGEX = re.compile(r"photo_(\d+)")
+VK_GROUP_REGEX = re.compile(r".*vk\.com/(.+?)(\?.+)?$", re.MULTILINE)
+HTML_ANEK_REGEX = re.compile(r"<meta name=\"description\" content=\"(.*?)\">", re.DOTALL)
+
+EXIT_SUCCESS = 0
+EXIT_UNKNOWN = -256
 
 
 def chat_in_state(chat_msg: Message, state_name: str) -> bool:
@@ -75,7 +89,7 @@ def chat_in_state(chat_msg: Message, state_name: str) -> bool:
 
 
 @bot.message_handler(commands=["abort", ])
-def bot_command_abort(msg: Message):
+def bot_cmd_abort(msg: Message):
     """
     Отменяет выполняемую команду.
 
@@ -91,7 +105,7 @@ def bot_command_abort(msg: Message):
 
 
 @bot.message_handler(commands=["info", ])
-def bot_command_info(msg: Message):
+def bot_cmd_info(msg: Message):
     """
     Информация о боте и чате.
 
@@ -124,15 +138,14 @@ def bot_process_configuration_vk(msg: Message):
     if (msg.reply_to_message is not None and this_chat.message_id_to_reply is not None) \
             and (msg.reply_to_message.message_id == this_chat.message_id_to_reply):
         text: str = msg.text
-        group_name_regex = re.compile(r".*vk\.com/(.+?)(\?.+)?$", re.MULTILINE)
         dead_links: list = []
         vk_groups = this_chat.vk_groups
         for line in text.splitlines():
             log.debug("line {}".format(line))
-            if not group_name_regex.match(line):
+            if not VK_GROUP_REGEX.match(line):
                 dead_links.append(line)
                 break
-            group_name: str = re.sub(group_name_regex, r"\1", line)
+            group_name: str = re.sub(VK_GROUP_REGEX, r"\1", line)
             log.debug("got group \"{}\"...".format(group_name))
             try:
                 response = vk.groups.getById(group_id=group_name, fields="id", version=VK_VER)
@@ -203,7 +216,7 @@ def bot_process_soundboard_gachi(msg: Message):
 
 
 @bot.message_handler(commands=['add', ])
-def bot_command_configuration_vk_add(msg: Message):
+def bot_cmd_configuration_vk_add(msg: Message):
     """
     Переводит бота в режим добавления групп ВК, если находится в правильном состоянии.
 
@@ -221,7 +234,7 @@ def bot_command_configuration_vk_add(msg: Message):
 
 
 @bot.message_handler(commands=["clear", ])
-def bot_command_configuration_vk_clear(msg: Message):
+def bot_cmd_configuration_vk_clear(msg: Message):
     """
     Очищает список групп ВК, если находится в правильном состоянии.
 
@@ -236,7 +249,7 @@ def bot_command_configuration_vk_clear(msg: Message):
 
 
 @bot.message_handler(commands=["config_vk", ])
-def bot_command_configuration_vk(msg: Message):
+def bot_cmd_configuration_vk(msg: Message):
     """
     Запускает настройку сообществ `vk.com`.
 
@@ -263,7 +276,7 @@ def bot_command_configuration_vk(msg: Message):
 
 
 @bot.message_handler(commands=["vk_pic", ])
-def bot_command_vk_pic(msg: Message):
+def bot_cmd_vk_pic(msg: Message):
     """
     Посылает рандомную картинку из списка сообществ.
 
@@ -285,18 +298,15 @@ def bot_command_vk_pic(msg: Message):
         "fields": "attachments",
         "version": VK_VER,
     }, limit=config.VK_ITEMS_PER_REQUEST * 25)  # 275 постов по умолчанию
-    photo_attach_regex = re.compile(r"photo_(\d+)")
     max_size_url = "ERROR"
     chosen = False
     while not chosen:
         log.debug("items count: {}".format(len(response["items"])))
         chosen_post: dict = random.choice(response["items"])
         if chosen_post["marked_as_ads"] == 1:
-            chosen = False
             log.debug("skip (ad)")
             continue
         if "attachments" not in chosen_post:
-            chosen = False
             log.debug("skip (attach)")
             continue
         for attach in chosen_post["attachments"]:
@@ -308,8 +318,8 @@ def bot_command_vk_pic(msg: Message):
                 for key in photo_attach:  # Аццкий костыль для выбора фото максимального разрешения
                     value = photo_attach[key]
                     log.debug("<{}> -> {}".format(key, value))
-                    if photo_attach_regex.match(key):  # Ключ типа ``photo_<res>``, где 25 <= <res> <= inf
-                        size = int(re.sub(photo_attach_regex, r"\1", key))
+                    if VK_PHOTO_ATTACH_REGEX.match(key):  # Ключ типа ``photo_<res>``, где 25 <= <res> <= inf
+                        size = int(re.sub(VK_PHOTO_ATTACH_REGEX, r"\1", key))
                         if size > max_size:
                             max_size = size
                 max_size_url = photo_attach["photo_" + str(max_size)]
@@ -320,7 +330,7 @@ def bot_command_vk_pic(msg: Message):
 
 
 @bot.message_handler(commands=["soundboard_jojo", ])
-def bot_command_soundboard_jojo(msg: Message):
+def bot_cmd_soundboard_jojo(msg: Message):
     """
     JoJo's Bizarre Adventure soundboard
 
@@ -340,7 +350,7 @@ def bot_command_soundboard_jojo(msg: Message):
 
 
 @bot.message_handler(commands=["soundboard_gachi", ])
-def bot_command_soundboard_gachi(msg: Message):
+def bot_cmd_soundboard_gachi(msg: Message):
     """
     Gachimuchi soundboard
 
@@ -360,7 +370,7 @@ def bot_command_soundboard_gachi(msg: Message):
 
 
 @bot.message_handler(commands=["whatanime", ])
-def bot_command_whatanime(msg: Message):
+def bot_cmd_whatanime(msg: Message):
     """
     Входит в режим поиска аниме по скриншоту (спасибо whatanime.ga за API)
 
@@ -377,7 +387,7 @@ def bot_command_whatanime(msg: Message):
 
 
 @bot.message_handler(commands=["codfish", ])
-def bot_command_codfish(msg: Message):
+def bot_cmd_codfish(msg: Message):
     """
     Бьет треской, теперь с видео.
 
@@ -408,7 +418,7 @@ def bot_command_codfish(msg: Message):
 
 
 @bot.message_handler(commands=["quote", ])
-def bot_command_quote(msg: Message):
+def bot_cmd_quote(msg: Message):
     """
     Посылает рандомную цитату с `tproger.ru`.
 
@@ -420,7 +430,7 @@ def bot_command_quote(msg: Message):
 
 
 @bot.message_handler(commands=["anek", ])
-def bot_command_anek(msg: Message):
+def bot_cmd_anek(msg: Message):
     """
     Посылает рандомный анекдот с `baneks.ru`.
 
@@ -430,12 +440,10 @@ def bot_command_anek(msg: Message):
     request = requests.get("https://baneks.ru/{}".format(random.randrange(1, 1142)))
     request.encoding = "utf-8"
     html_text = request.text
-    # log.debug("full response:\n{}".format(html_text))
-    parsed = BeautifulSoup(html_text, "html.parser")
-    # TODO: сервер отдает данные без экранирования кавычек...
-    anek_meta_title = parsed.find("meta", attrs={"name": "description", })
-    out_msg = anek_meta_title["content"] if anek_meta_title else "ERROR"
-    # log.debug("ready to send, contents:\n{}".format(out_msg))
+
+    # Да, это парсинг регексами: сервер отдает данные без экранирования кавычек...
+    result = HTML_ANEK_REGEX.search(html_text)
+    out_msg = result.group(1) if result else "ERROR"
     bot.send_message(msg.chat.id, "<code>{}</code>".format(out_msg), parse_mode="HTML")
 
 
@@ -448,6 +456,7 @@ def bot_all_messages(msg: Message):
     :param Message msg: сообщение
     """
     user: User = msg.from_user
+    chat: Chat = msg.chat
     if user.username not in users_dict:
         log.debug("user not known")
         users_dict[user.username] = user.id
@@ -459,6 +468,63 @@ def bot_all_messages(msg: Message):
         chat_states[chat_id] = chat_state.ChatState(chat_state.NONE)
     else:
         log.debug("chat known")
+    if config.LOG_INPUT:
+        global messages_log_files
+        if chat_id not in messages_log_files:
+            base_name = "chat_{}.log".format(chat.title if chat.title is not None else chat.username)
+            log_path = os.path.join(root_path, base_name)
+            messages_log_files[chat_id] \
+                = open(log_path, mode="at", buffering=1, encoding="utf-8", errors="backslashreplace")
+        file_instance: io.StringIO = messages_log_files[chat_id]
+        dtime = datetime.fromtimestamp(msg.date).strftime('%Y-%m-%d %H:%M:%S')
+        out_str = "({}) {}: {}\n".format(dtime, user.username, msg.text)
+        file_instance.write(out_str)
+        file_instance.flush()
+
+
+def prepare_logger() -> logging.Logger:
+    """
+    Готовит логгер к использованию.
+
+    :return: готовый экземпляр логгера
+    :rtype: logging.Logger
+    """
+    formatter = logging.Formatter(config.LOG_FORMAT)
+    loglevel = config.LOG_LEVEL
+    l_log = logging.getLogger()
+    l_log.setLevel(loglevel)
+    if config.LOG_TO_STDOUT:
+        ch = logging.StreamHandler()
+        ch.setFormatter(formatter)
+        ch.setLevel(loglevel)
+        l_log.addHandler(ch)
+    if config.LOG_TO_FILE:
+        fh = logging.FileHandler(os.path.join(root_path, "main.log"))
+        fh.setFormatter(formatter)
+        fh.setLevel(loglevel)
+        l_log.addHandler(fh)
+        l_log.info("Logs path: {}".format(os.path.join(root_path, "main.log")))
+    return l_log
+
+
+def save_chat_states():
+    """
+    Сохряняет состояние чатов и пользователей в ``.pkl``-файл.
+    """
+    states_save_path = os.path.join(root_path, "states.pkl")
+    users_save_path = os.path.join(root_path, "users.pkl")
+    global log
+    if log is None:
+        log = prepare_logger()
+    log.info("saving info to {}...".format(root_path))
+    try:
+        with open(states_save_path, "w+b") as states_file:
+            pickle.dump(chat_states, states_file, pickle.HIGHEST_PROTOCOL)
+            with open(users_save_path, "w+b") as users_file:
+                pickle.dump(users_dict, users_file, pickle.HIGHEST_PROTOCOL)
+            log.info("...success!")
+    except Exception as exc:
+        log.warning("can\'t save info: {}".format(exc))
 
 
 # noinspection PyUnusedLocal
@@ -466,8 +532,11 @@ def exit_handler(sig, frame):
     """
     Обработчик ``^C``.
     """
-    log.info("Exiting...")
+    save_chat_states()
     bot.stop_polling()
+    for file in messages_log_files.values():
+        if not file.closed:
+            file.close()
     sys.exit(EXIT_SUCCESS)
 
 
@@ -478,34 +547,29 @@ def main() -> int:
     :return: код выхода (сейчас не используется)
     :rtype: int
     """
-    formatter = logging.Formatter(config.LOG_FORMAT)
-    loglevel = config.LOG_LEVEL
+    # Prepare home dir
+    if not os.path.exists(root_path):
+        os.makedirs(root_path)
+    elif not os.path.isdir(root_path):
+        os.remove(root_path)
+        os.makedirs(root_path)
+
+    # Prepare logger
     global log
-    log = logging.getLogger()
-    log.setLevel(loglevel)
-    if config.LOG_TO_STDOUT:
-        ch = logging.StreamHandler()
-        ch.setFormatter(formatter)
-        ch.setLevel(loglevel)
-        log.addHandler(ch)
-    if config.LOG_TO_FILE:
-        fh = logging.FileHandler(os.path.join(tempfile.gettempdir(), "pod042_bot.log"))
-        fh.setFormatter(formatter)
-        fh.setLevel(loglevel)
-        log.addHandler(fh)
-        log.info("Logs path: {}".format(os.path.join(tempfile.gettempdir(), "pod042_bot.log")))
+    log = prepare_logger()
 
     # Prepare resources
     global soundboard_jojo_sounds
-    for file in resource_listdir(config.JOJO, ""):
-        if file.endswith(".mp3"):
-            soundboard_jojo_sounds.append(file[:-4])  # strip '.mp3'
+    for states_file in resource_listdir(config.JOJO, ""):
+        if states_file.endswith(".mp3"):
+            soundboard_jojo_sounds.append(states_file[:-4])  # strip '.mp3'
 
     global soundboard_gachi_sounds
-    for file in resource_listdir(config.GACHI, ""):
-        if file.endswith(".mp3"):
-            soundboard_gachi_sounds.append(file[:-4])
+    for states_file in resource_listdir(config.GACHI, ""):
+        if states_file.endswith(".mp3"):
+            soundboard_gachi_sounds.append(states_file[:-4])
 
+    # Init VK API
     try:
         log.info("vk init...")
         vk_session = vk_api.VkApi(login=config.VK_LOGIN, password=config.VK_PASSWORD)
@@ -529,7 +593,25 @@ def main() -> int:
         log.error("...failure! Reason: {}, VK disabled".format(exc))
         log.debug("With trace:\n{}".format(traceback.format_exc()))
 
-    log.info("Starting...")
+    # Load info from disk
+    states_save_path = os.path.join(root_path, "states.pkl")
+    users_save_path = os.path.join(root_path, "users.pkl")
+    log.info("loading info from {}...".format(root_path))
+    try:
+        with open(states_save_path, "r+b") as states_file:
+            global chat_states
+            chat_states = pickle.load(states_file)
+            with open(users_save_path, "r+b") as users_file:
+                global users_dict
+                users_dict = pickle.load(users_file)
+            log.info("...success!")
+    except Exception as exc:
+        log.warning("can\'t load info: {}".format(exc))
+        log.debug("With trace:\n"
+                  "{}".format(traceback.format_exc()))
+
+    # Start
+    log.info("Starting polling")
     bot.polling(none_stop=True)
     # Block thread!
 
@@ -542,15 +624,18 @@ if __name__ == '__main__':
     """
     print("init!")
     signal.signal(signal.SIGINT, exit_handler)
+    signal.signal(signal.SIGTERM, exit_handler)
     while True:
         # noinspection PyBroadException
         try:
             sys.exit(main())
         except Exception as e:
             e_str = "Unknown exception was raised!\n" \
+                    "You can report issue w/ traceback at:\n" \
+                    "https://github.com/saber-nyan/pod042-bot/issues\n\n" \
                     "{}".format(traceback.format_exc())
-            if log is not None:
-                log.critical(e_str)
-            else:
-                print(e_str)
+            if log is None:
+                log = prepare_logger()
+            log.critical(e_str)
+            save_chat_states()
             sys.exit(EXIT_UNKNOWN)

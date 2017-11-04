@@ -21,7 +21,6 @@ setup(
     install_requires=[
         'pyTelegramBotAPI',
         'vk_api',
-        'beautifulsoup4',
     ],
     packages=find_packages(),
     include_package_data=True,

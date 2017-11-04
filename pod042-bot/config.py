@@ -31,20 +31,23 @@ NUM_THREADS = os.getenv('THREADS', 16)  # Кол-во потоков обраб�
 logfmt_default = '%(asctime)s (%(filename)s:%(lineno)d %(threadName)s) %(levelname)s - %(name)s: %(message)s'
 LOG_FORMAT = os.getenv('LOG_FORMAT', logfmt_default)  # Формат лога. %%Зачем вам эта настройка?%%
 
-# Уровни (даже не пытайтесь запихнуть строку!):
-# CRITICAL = 50
-# ERROR = 40
-# WARNING = 30
-# INFO = 20
-# DEBUG = 10
-# NOTSET = 0
-LOG_LEVEL = os.getenv('LOG_LEVEL', 20)  # Уровень лога.
+# Уровни (даже не пытайтесь запихнуть число!):
+# CRITICAL
+# ERROR
+# WARNING
+# INFO
+# DEBUG
+# NOTSET
+LOG_LEVEL = os.getenv('LOG_LEVEL', "INFO")  # Уровень лога.
 
 # Логгировать в вывод? (Просто объявите переменную окружения 'LOG_TO_STDOUT_DISABLE')
 LOG_TO_STDOUT = (False if 'LOG_TO_STDOUT_DISABLE' in os.environ else True)
 
 # Логгировать в файл?
 LOG_TO_FILE = (False if 'LOG_TO_FILE_DISABLE' in os.environ else True)
+
+# Логгировать все сообщения
+LOG_INPUT = (True if 'LOG_INPUT' in os.environ else False)
 #################################################
 # BUILTIN: RESOURCES! ###########################
 ROOT = 'pod042-bot.resources'
