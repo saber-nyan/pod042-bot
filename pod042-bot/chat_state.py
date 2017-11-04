@@ -10,7 +10,7 @@ try:
 except ImportError:
     from vk_group import VkGroup
 
-NONE = ""
+NONE = "Нет"
 WHATANIME = "whatanime.ga: поиск аниме"
 SOUNDBOARD_JOJO = "JoJo's Bizarre Adventure soundboard"
 SOUNDBOARD_GACHI = "Gachimuchi soundboard"
@@ -25,7 +25,6 @@ class ChatState:
 
     """
     Название запущенного запроса.
-    Если строка пуста -- запрос не запущен. 
     Для отмены используется ``/abort``.
     """
     state_name: str = NONE
@@ -39,7 +38,7 @@ class ChatState:
     Список групп, откуда берется контент.
     group_name <-> VkGroup
     """
-    vk_groups: typing.List[VkGroup] = ["https://vk.com/seifuku_blog", ]  # 10/10 азиаточки
+    vk_groups: typing.List[VkGroup] = [VkGroup(29937425, "Sailor fuku", "seifuku_blog"), ]  # 10/10 азиаточки
 
     def __init__(self, state_name: str, message_id_to_reply=None, vk_groups=None):
         """
@@ -48,7 +47,7 @@ class ChatState:
         :param typing.List[VkGroup] vk_groups: Список групп, откуда берется контент.
         """
         if vk_groups is None:
-            vk_groups = ["https://vk.com/seifuku_blog", ]
+            vk_groups = [VkGroup(29937425, "Sailor fuku", "seifuku_blog"), ]
         self.state_name = state_name
         self.message_id_to_reply = message_id_to_reply
         self.vk_groups = vk_groups

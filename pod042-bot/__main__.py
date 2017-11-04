@@ -18,7 +18,7 @@ import telebot
 from bs4 import BeautifulSoup
 from pkg_resources import resource_stream, resource_listdir
 from telebot.types import Message, User
-from vk_api import vk_api
+from vk_api import vk_api, VkTools
 from vk_api.vk_api import VkApiMethod
 
 try:
@@ -52,7 +52,10 @@ log: logging.Logger = None
 
 bot = telebot.TeleBot(config.BOT_TOKEN, num_threads=config.NUM_THREADS)
 vk: VkApiMethod = None
-is_vk_enabled = False
+vk_tools: VkTools = None
+vk_disabled = True
+
+VK_VER = 5.69
 
 
 def chat_in_state(chat_msg: Message, state_name: str) -> bool:
@@ -87,6 +90,17 @@ def bot_command_abort(msg: Message):
         bot.send_message(chat_id, "Я ничем не занят!")
 
 
+@bot.message_handler(commands=["info", ])
+def bot_command_info(msg: Message):
+    """
+    Информация о боте и чате.
+
+    :param Message msg: сообщение
+    """
+    bot_all_messages(msg)
+    # TODO
+
+
 @bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.WHATANIME))
 def bot_process_whatanime(msg: Message):
     """
@@ -95,6 +109,7 @@ def bot_process_whatanime(msg: Message):
     :param Message msg: сообщение
     """
     bot_all_messages(msg)
+    # TODO
 
 
 @bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.CONFIGURE_VK_GROUPS_ADD))
@@ -120,7 +135,7 @@ def bot_process_configuration_vk(msg: Message):
             group_name: str = re.sub(group_name_regex, r"\1", line)
             log.debug("got group \"{}\"...".format(group_name))
             try:
-                response = vk.groups.getById(group_id=group_name, fields="id", version=5.68)
+                response = vk.groups.getById(group_id=group_name, fields="id", version=VK_VER)
             except (vk_api.ApiError, vk_api.ApiHttpError) as err:
                 log.info("...but request failed ({})".format(err))
                 dead_links.append(line)
@@ -229,7 +244,7 @@ def bot_command_configuration_vk(msg: Message):
     """
     bot_all_messages(msg)
     chat_id = msg.chat.id
-    if not is_vk_enabled:
+    if vk_disabled:
         bot.send_message(chat_id, "Модуль ВКонтакте отключен.")
         return
     grps_str = ""
@@ -256,21 +271,26 @@ def bot_command_vk_pic(msg: Message):
     """
     bot_all_messages(msg)
     chat_id = msg.chat.id
-    if not is_vk_enabled:
+    if vk_disabled:
         bot.send_message(chat_id, "Модуль ВКонтакте отключен.")
         return
     if len(chat_states[chat_id].vk_groups) == 0:
         bot.send_message(chat_id, "Сначала настройте группы с помощью /config_vk")
         return
+    bot.send_chat_action(chat_id, "upload_photo")
     chosen_group: vk_group.VkGroup = random.choice(chat_states[chat_id].vk_groups)
     log.debug("selected {} as source".format(chosen_group))
-    response = vk.wall.get(domain=chosen_group.url_name, count=100, fields="attachments", version=5.68)
+    response = vk_tools.get_all("wall.get", max_count=config.VK_ITEMS_PER_REQUEST, values={
+        "domain": chosen_group.url_name,
+        "fields": "attachments",
+        "version": VK_VER,
+    }, limit=config.VK_ITEMS_PER_REQUEST * 25)  # 275 постов по умолчанию
     photo_attach_regex = re.compile(r"photo_(\d+)")
     max_size_url = "ERROR"
     chosen = False
     while not chosen:
+        log.debug("items count: {}".format(len(response["items"])))
         chosen_post: dict = random.choice(response["items"])
-        log.debug("chosen {}!".format(chosen_post))
         if chosen_post["marked_as_ads"] == 1:
             chosen = False
             log.debug("skip (ad)")
@@ -281,14 +301,14 @@ def bot_command_vk_pic(msg: Message):
             continue
         for attach in chosen_post["attachments"]:
             if "photo" in attach:
-                log.info("found!")
+                log.debug("found!")
                 photo_attach = attach["photo"]
                 log.debug("attach {}".format(photo_attach))
                 max_size = 75
-                for key in photo_attach:
+                for key in photo_attach:  # Аццкий костыль для выбора фото максимального разрешения
                     value = photo_attach[key]
                     log.debug("<{}> -> {}".format(key, value))
-                    if photo_attach_regex.match(key):
+                    if photo_attach_regex.match(key):  # Ключ типа ``photo_<res>``, где 25 <= <res> <= inf
                         size = int(re.sub(photo_attach_regex, r"\1", key))
                         if size > max_size:
                             max_size = size
@@ -473,7 +493,7 @@ def main() -> int:
         fh.setFormatter(formatter)
         fh.setLevel(loglevel)
         log.addHandler(fh)
-        log.info("Logs path: {}".format(tempfile.gettempdir()))
+        log.info("Logs path: {}".format(os.path.join(tempfile.gettempdir(), "pod042_bot.log")))
 
     # Prepare resources
     global soundboard_jojo_sounds
@@ -494,12 +514,17 @@ def main() -> int:
         vk = vk_session.get_api()
         log.info("...success!")
 
+        log.info("vk tools init...")
+        global vk_tools
+        vk_tools = VkTools(vk_session)
+        log.info("...success!")
+
         log.info("vk test...")
-        response = vk.groups.getById(group_id="team", fields="id", version=5.68)
+        response = vk.groups.getById(group_id="team", fields="id", version=VK_VER)
         log.info("...success!")
         log.debug("With response: {}".format(response))
-        global is_vk_enabled
-        is_vk_enabled = True
+        global vk_disabled
+        vk_disabled = False
     except Exception as exc:
         log.error("...failure! Reason: {}, VK disabled".format(exc))
         log.debug("With trace:\n{}".format(traceback.format_exc()))
