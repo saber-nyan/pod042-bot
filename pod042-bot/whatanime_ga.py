@@ -22,12 +22,18 @@ class WhatAnimeResult:
     Результат (одно аниме, а их несколько) поиска.
     """
 
-    to: int = None
+    # ``from`` shadows Python builtin...
+    # from: float = None
+    # """
+    # Starting time of the matching scene
+    # """
+
+    to: float = None
     """
     Ending time of the matching scene
     """
 
-    at: int = None
+    at: float = None
     """
     Exact time of the matching scene
     """
@@ -112,8 +118,14 @@ class WhatAnimeResult:
     Параметры для запроса миниатюры и превью.
     """
 
+    def __str(self):
+        return "{} EP#{}, similarity: {}".format(self.title_romaji, self.episode, self.similarity)
+
     def __str__(self):
-        return self.__dict__.__str__()
+        return self.__str()
+
+    def __repr__(self):
+        return self.__str()
 
     def __init__(self, response: json):
         self.__dict__.update(response)
@@ -220,10 +232,14 @@ class WhatAnimeClient:
         :rtype: WhatAnimeResult
         """
         with open(picture_path, mode="rb") as file:
-            img: Image.Image = Image.open(file)
+            try:
+                img: Image.Image = Image.open(file)
+            except OSError as exc:
+                raise IOError("file is not a picture") from exc
             out = BytesIO()
             img.save(out, "JPEG", quality=85)
         # Потратил 1.5 часа на отладку... оказалось, нужно просто написать "utf-8": к строке добавлялись b''
+        # noinspection PyUnboundLocalVariable
         base64_encoded_image: str = str(base64.b64encode(out.getvalue()), "utf-8")
         response = requests.post("{}/api/search".format(ENDPOINT), params={
             "token": self.token,

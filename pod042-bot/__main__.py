@@ -133,7 +133,7 @@ def bot_process_whatanime(msg: Message):
     chat_id = msg.chat.id
     msg_text = msg.text
 
-    if not msg_text.startswith(("http://", "https://",)):
+    if (msg.photo is None and msg.document is None) and not msg_text.startswith(("http://", "https://",)):
         log.debug("not link, skipping: {}".format(msg.text))
         return
 
@@ -148,7 +148,6 @@ def bot_process_whatanime(msg: Message):
                                   not_ready + "Поиск\n" +
                                   not_ready + "Результат\n" +
                                   not_ready + "Превью\n")
-    download_url: str = None
     if msg.photo is not None:  # Фото, .jpg
         photos: typing.List[PhotoSize] = msg.photo
         file: File = bot.get_file(photos[-1].file_id)  # Biggest resolution
@@ -172,6 +171,8 @@ def bot_process_whatanime(msg: Message):
         bot.send_message(chat_id, "Не смог получить ссылку для загрузки. Жду еще одного сообщения или /abort!")
         return
     log.debug("ready to download input, url: {}".format(download_url))
+
+    # Download!
     try:
         status_msg = bot.edit_message_text(ready + "Подготовка ссылки\n" +
                                            pending + "Загрузка\n" +
@@ -208,6 +209,12 @@ def bot_process_whatanime(msg: Message):
         bot.send_message(chat_id, "Ошибка при загрузке. Жду еще одного сообщения или /abort!\n"
                                   "Подробнее: {}".format(exc))
         log.debug("{}".format(traceback.format_exc()))
+        # noinspection PyBroadException
+        try:
+            # noinspection PyUnboundLocalVariable
+            os.remove(os.path.realpath(search_file_path))
+        except:
+            pass
         return
 
     status_msg = bot.edit_message_text(ready + "Подготовка ссылки\n" +
@@ -216,10 +223,37 @@ def bot_process_whatanime(msg: Message):
                                        not_ready + "Результат\n" +
                                        not_ready + "Превью\n",
                                        chat_id, status_msg.message_id)
+    # Search!
     try:
         results: typing.List[whatanime_ga.WhatAnimeResult] = whatanime.search(search_file_path)
-        for result in results:
-            log.info("result!\n{}".format(result.__dict__))  # TODO
+        status_msg = bot.edit_message_text(ready + "Подготовка ссылки\n" +
+                                           ready + "Загрузка\n" +
+                                           ready + "Поиск\n" +
+                                           pending + "Результат\n" +
+                                           not_ready + "Превью\n",
+                                           chat_id, status_msg.message_id)
+        # Вообще-то, результатов обычно несколько. Но мне слишком лень писать сложную обработку, поэтому довольствуемся
+        # самым подходящим.
+        result = results[0]
+        result.load_thumbnail()
+        bot.send_message(chat_id, "<code>{}</code>".format(result.title_romaji), parse_mode="HTML")
+        status_msg = bot.edit_message_text(ready + "Подготовка ссылки\n" +
+                                           ready + "Загрузка\n" +
+                                           ready + "Поиск\n" +
+                                           ready + "Результат\n" +
+                                           pending + "Превью\n"
+                                                     "Осталось {} запросов за {} секунд."
+                                           .format(whatanime.now_quota,
+                                                   whatanime.quota_expire),
+                                           chat_id, status_msg.message_id)
+        match = "Совпадение" if result.similarity > 0.80 else "Низкая вероятность! Совпадение"
+        out_msg = "{0}: {1:.1f}%\n" \
+                  "{2} (EP#{3}, в {4:.2f} мин)\n" \
+                  "{5}".format(match, result.similarity * 100, result.title, result.episode,
+                               result.at / 60, result.title_english)
+        with open(result.thumb_path, mode="rb") as file:
+            bot.send_photo(chat_id, file, out_msg)
+        os.remove(result.thumb_path)
     except Exception as exc:
         bot.edit_message_text(ready + "Подготовка ссылки\n" +
                               ready + "Загрузка\n" +
@@ -230,10 +264,37 @@ def bot_process_whatanime(msg: Message):
         bot.send_message(chat_id, "Ошибка при поиске. Жду еще одного сообщения или /abort!\n"
                                   "Подробнее: {}".format(exc))
         log.debug("{}".format(traceback.format_exc()))
+        os.remove(os.path.realpath(search_file_path))
         return
 
+    # Preview!
+    try:
+        result.load_preview()
+        out_msg = "{0:.2f} - {1:.2f}".format(result.__dict__["from"] / 60, result.to / 60)
+        bot.send_chat_action(chat_id, "record_video")
+        with open(result.preview_path, mode="rb") as file:
+            bot.send_video(chat_id, file, caption=out_msg)
+        os.remove(result.preview_path)
+        bot.edit_message_text(ready + "Подготовка ссылки\n" +
+                              ready + "Загрузка\n" +
+                              ready + "Поиск\n" +
+                              ready + "Результат\n" +
+                              ready + "Превью\n"
+                                      "Осталось {} запросов за {} секунд."
+                              .format(whatanime.now_quota, whatanime.quota_expire),
+                              chat_id, status_msg.message_id)
+    except Exception as exc:
+        bot.edit_message_text(ready + "Подготовка ссылки\n" +
+                              ready + "Загрузка\n" +
+                              ready + "Поиск\n" +
+                              ready + "Результат\n" +
+                              error + "Превью ({})\n"
+                                      "Осталось {} запросов за {} секунд."
+                              .format(exc, whatanime.now_quota, whatanime.quota_expire),
+                              chat_id, status_msg.message_id)
+        log.debug("{}".format(traceback.format_exc()))
+
     os.remove(os.path.realpath(search_file_path))
-    bot.send_message(chat_id, "Выполнено, вернулся в основной режим.")
     chat_states[chat_id].state_name = chat_state.NONE
 
 
