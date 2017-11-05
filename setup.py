@@ -22,7 +22,6 @@ setup(
         'pyTelegramBotAPI',
         'vk_api',
         'Pillow',
-        'python-magic-bin',
     ],
     packages=find_packages(),
     include_package_data=True,

@@ -5,7 +5,6 @@
 """
 import io
 import logging
-import mimetypes
 import os
 import pickle
 import random
@@ -17,7 +16,6 @@ import typing
 from datetime import datetime
 from pathlib import Path
 
-import magic
 import requests
 import telebot
 from pkg_resources import resource_stream, resource_listdir
@@ -192,11 +190,7 @@ def bot_process_whatanime(msg: Message):
                                   chat_id, status_msg.message_id)
             bot.send_message(chat_id, "Объем данных превышает 2МБ, отменено. Жду еще одного сообщения или /abort!")
             return
-        content_type = magic.from_buffer(data, mime=True)
-        ext = mimetypes.guess_extension(content_type)
-        extension = ext if ext is not None else ""
-        log.debug("mime: {}; extension: {}".format(content_type, extension))
-        search_file_path = os.path.join(root_path, "search_{}{}".format(msg.message_id, extension))
+        search_file_path = os.path.join(root_path, "search_{}".format(msg.message_id))
         with open(search_file_path, mode="wb") as file:
             file.write(data)
     except Exception as exc:
