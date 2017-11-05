@@ -5,6 +5,7 @@
 """
 import io
 import logging
+import mimetypes
 import os
 import pickle
 import random
@@ -16,10 +17,11 @@ import typing
 from datetime import datetime
 from pathlib import Path
 
+import magic
 import requests
 import telebot
 from pkg_resources import resource_stream, resource_listdir
-from telebot.types import Message, User, Chat
+from telebot.types import Message, User, Chat, PhotoSize, File, Document, ForceReply
 from vk_api import vk_api, VkTools
 from vk_api.vk_api import VkApiMethod
 
@@ -27,37 +29,41 @@ try:
     from . import chat_state
     from . import config
     from . import vk_group
+    from . import whatanime_ga
 except ImportError:
     import chat_state
     import config
     import vk_group
+    import whatanime_ga
 
+users_dict: typing.Dict[str, int] = {}
 """
 Словарь id пользователей.
 user.username <-> user.id
 """
-users_dict: typing.Dict[str, int] = {}
 
+chat_states: typing.Dict[int, chat_state.ChatState] = {}
 """
 Словарь состояня чатов.
 msg.chat.id <-> ChatState
 """
-chat_states: typing.Dict[int, chat_state.ChatState] = {}
 
 soundboard_jojo_sounds: list = []
 soundboard_gachi_sounds: list = []
 
+messages_log_files: typing.Dict[int, io.StringIO] = {}
 """
 Словарь файлов для полного логгирования чатов.
 msg.chat.id <-> file stream (io.StringIO)
 """
-messages_log_files: typing.Dict[int, io.StringIO] = {}
 
 log: logging.Logger = None
 
 root_path = os.path.join(Path.home(), ".pod042-bot")
 
 bot = telebot.TeleBot(config.BOT_TOKEN, num_threads=config.NUM_THREADS)
+whatanime: whatanime_ga.WhatAnimeClient = None
+whatanime_disabled = True
 vk: VkApiMethod = None
 vk_tools: VkTools = None
 vk_disabled = True
@@ -115,7 +121,8 @@ def bot_cmd_info(msg: Message):
     # TODO
 
 
-@bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.WHATANIME))
+@bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.WHATANIME),
+                     content_types=["text", "document", "photo"])
 def bot_process_whatanime(msg: Message):
     """
     Ищет скриншот из аниме с помощью `whatanime.ga`.
@@ -123,7 +130,111 @@ def bot_process_whatanime(msg: Message):
     :param Message msg: сообщение
     """
     bot_all_messages(msg)
-    # TODO
+    chat_id = msg.chat.id
+    msg_text = msg.text
+
+    if not msg_text.startswith(("http://", "https://",)):
+        log.debug("not link, skipping: {}".format(msg.text))
+        return
+
+    ready = "\u2705 "
+    pending = "\u2747\ufe0f "
+    not_ready = "\u274e "
+    error = "\u203c\ufe0f "
+
+    # Prepare URL
+    status_msg = bot.send_message(chat_id, pending + "Подготовка ссылки\n" +
+                                  not_ready + "Загрузка\n" +
+                                  not_ready + "Поиск\n" +
+                                  not_ready + "Результат\n" +
+                                  not_ready + "Превью\n")
+    download_url: str = None
+    if msg.photo is not None:  # Фото, .jpg
+        photos: typing.List[PhotoSize] = msg.photo
+        file: File = bot.get_file(photos[-1].file_id)  # Biggest resolution
+        download_url = "https://api.telegram.org/file/bot{}/{}".format(config.BOT_TOKEN, file.file_path)
+        log.debug("pic")
+    elif msg.document is not None:  # Документ, any!
+        document: Document = msg.document
+        file: File = bot.get_file(document.file_id)
+        download_url = "https://api.telegram.org/file/bot{}/{}".format(config.BOT_TOKEN, file.file_path)
+        log.debug("doc")
+    else:  # Ссылка, any!
+        download_url = msg_text
+        log.debug("text")
+    if download_url is None:
+        bot.edit_message_text(error + "Подготовка ссылки\n" +
+                              not_ready + "Загрузка\n" +
+                              not_ready + "Поиск\n" +
+                              not_ready + "Результат\n" +
+                              not_ready + "Превью\n",
+                              chat_id, status_msg.message_id)
+        bot.send_message(chat_id, "Не смог получить ссылку для загрузки. Жду еще одного сообщения или /abort!")
+        return
+    log.debug("ready to download input, url: {}".format(download_url))
+    try:
+        status_msg = bot.edit_message_text(ready + "Подготовка ссылки\n" +
+                                           pending + "Загрузка\n" +
+                                           not_ready + "Поиск\n" +
+                                           not_ready + "Результат\n" +
+                                           not_ready + "Превью\n",
+                                           chat_id, status_msg.message_id)
+        response = requests.get(download_url, timeout=5, stream=True)
+        data = response.raw.read(2097152 + 1, decode_content=True)
+        if len(data) > 2097152:  # 2MB
+            response.close()
+            bot.edit_message_text(ready + "Подготовка ссылки\n" +
+                                  error + "Загрузка\n" +
+                                  not_ready + "Поиск\n" +
+                                  not_ready + "Результат\n" +
+                                  not_ready + "Превью\n",
+                                  chat_id, status_msg.message_id)
+            bot.send_message(chat_id, "Объем данных превышает 2МБ, отменено. Жду еще одного сообщения или /abort!")
+            return
+        content_type = magic.from_buffer(data, mime=True)
+        ext = mimetypes.guess_extension(content_type)
+        extension = ext if ext is not None else ""
+        log.debug("mime: {}; extension: {}".format(content_type, extension))
+        search_file_path = os.path.join(root_path, "search_{}{}".format(msg.message_id, extension))
+        with open(search_file_path, mode="wb") as file:
+            file.write(data)
+    except Exception as exc:
+        bot.edit_message_text(ready + "Подготовка ссылки\n" +
+                              error + "Загрузка\n" +
+                              not_ready + "Поиск\n" +
+                              not_ready + "Результат\n" +
+                              not_ready + "Превью\n",
+                              chat_id, status_msg.message_id)
+        bot.send_message(chat_id, "Ошибка при загрузке. Жду еще одного сообщения или /abort!\n"
+                                  "Подробнее: {}".format(exc))
+        log.debug("{}".format(traceback.format_exc()))
+        return
+
+    status_msg = bot.edit_message_text(ready + "Подготовка ссылки\n" +
+                                       ready + "Загрузка\n" +
+                                       pending + "Поиск\n" +
+                                       not_ready + "Результат\n" +
+                                       not_ready + "Превью\n",
+                                       chat_id, status_msg.message_id)
+    try:
+        results: typing.List[whatanime_ga.WhatAnimeResult] = whatanime.search(search_file_path)
+        for result in results:
+            log.info("result!\n{}".format(result.__dict__))  # TODO
+    except Exception as exc:
+        bot.edit_message_text(ready + "Подготовка ссылки\n" +
+                              ready + "Загрузка\n" +
+                              error + "Поиск\n" +
+                              not_ready + "Результат\n" +
+                              not_ready + "Превью\n",
+                              chat_id, status_msg.message_id)
+        bot.send_message(chat_id, "Ошибка при поиске. Жду еще одного сообщения или /abort!\n"
+                                  "Подробнее: {}".format(exc))
+        log.debug("{}".format(traceback.format_exc()))
+        return
+
+    os.remove(os.path.realpath(search_file_path))
+    bot.send_message(chat_id, "Выполнено, вернулся в основной режим.")
+    chat_states[chat_id].state_name = chat_state.NONE
 
 
 @bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.CONFIGURE_VK_GROUPS_ADD))
@@ -173,7 +284,7 @@ def bot_process_configuration_vk(msg: Message):
                   "Сейчас в списке:\n" \
                   "<code>{}</code>\n" \
                   "Не добавлено:\n" \
-                  "<code>{}</code>".format(success_grps, fail_grps)
+                  "<code>{}</code>".format(success_grps, fail_grps if (len(fail_grps) != 0) else "Ничего!")
         bot.send_message(msg.chat.id, out_msg, parse_mode="HTML")
 
 
@@ -228,7 +339,7 @@ def bot_cmd_configuration_vk_add(msg: Message):
                   "по одному на строку.\n" \
                   "<i>Желательно без мусорных знаков...</i>"
         chat_id = msg.chat.id
-        sent_msg = bot.send_message(chat_id, out_msg, parse_mode="HTML")
+        sent_msg = bot.send_message(chat_id, out_msg, reply_markup=ForceReply(), parse_mode="HTML")
         chat_states[chat_id].state_name = chat_state.CONFIGURE_VK_GROUPS_ADD
         chat_states[chat_id].message_id_to_reply = sent_msg.message_id
 
@@ -378,11 +489,14 @@ def bot_cmd_whatanime(msg: Message):
     """
     bot_all_messages(msg)
     chat_id = msg.chat.id
+    if whatanime_disabled:
+        bot.send_message(chat_id, "Модуль whatanime.ga отключен.")
+        return
     chat_states[chat_id].state_name = chat_state.WHATANIME
     chat_states[chat_id].message_id_to_reply = msg.message_id
     out_msg = "Вошел в режим <b>whatanime.ga: поиск аниме</b>!\n" \
               "Напиши /abort для выхода.\n\n" \
-              "Для поиска <b>Reply</b>`ни на это сообщение с картинкой или ссылкой (WIP)."
+              "Для поиска отправь картинку или <b>прямую</b> ссылку (должна начинаться с http/https)."
     bot.send_message(chat_id, out_msg, parse_mode="HTML")
 
 
@@ -447,7 +561,12 @@ def bot_cmd_anek(msg: Message):
     bot.send_message(msg.chat.id, "<code>{}</code>".format(out_msg), parse_mode="HTML")
 
 
-@bot.message_handler(func=lambda msg: True)
+@bot.message_handler(func=lambda msg: True,
+                     content_types=["text", "audio", "document", "photo", "sticker", "video", "video_note", "voice",
+                                    "location", "contact", "new_chat_members", "left_chat_member", "new_chat_title",
+                                    "new_chat_photo", "delete_chat_photo", "group_chat_created",
+                                    "supergroup_chat_created", "channel_chat_created", "migrate_to_chat_id",
+                                    "migrate_from_chat_id", "pinned_message", ])
 def bot_all_messages(msg: Message):
     """
     Метод для заполнения :var:`users_dict` и инициализации состояния чатов.
@@ -477,7 +596,30 @@ def bot_all_messages(msg: Message):
                 = open(log_path, mode="at", buffering=1, encoding="utf-8", errors="backslashreplace")
         file_instance: io.StringIO = messages_log_files[chat_id]
         dtime = datetime.fromtimestamp(msg.date).strftime('%Y-%m-%d %H:%M:%S')
-        out_str = "({}) {}: {}\n".format(dtime, user.username, msg.text)
+        if msg.text is not None:
+            out_str = "({}) {}:\n" \
+                      "\t{}\n".format(dtime, user.username, msg.text)
+        else:
+            # noinspection PyBroadException
+            try:
+                obj = msg.__dict__[msg.content_type]
+                mime_type: str = obj.mime_type
+                filename: str = obj.file_name
+            except:
+                # noinspection PyBroadException
+                try:
+                    obj: PhotoSize = msg.__dict__[msg.content_type][-1]
+                    log.debug("{}".format(obj))
+                    mime_type: str = "{0:.1f}KB".format(obj.file_size / 1024)
+                    filename: str = "{}x{}".format(obj.width, obj.height)
+                except:
+                    mime_type = "err"
+                    filename = "err"
+                    log.info("{}".format(traceback.format_exc()))
+
+            out_str = "({}) {}:\n" \
+                      "\t*{}* -- ({}) {}\n" \
+                      "\t~~{}~~\n".format(dtime, user.username, msg.content_type, mime_type, filename, msg.caption)
         file_instance.write(out_str)
         file_instance.flush()
 
@@ -591,6 +733,18 @@ def main() -> int:
         vk_disabled = False
     except Exception as exc:
         log.error("...failure! Reason: {}, VK disabled".format(exc))
+        log.debug("With trace:\n{}".format(traceback.format_exc()))
+
+    # Init whatanime.ga API
+    try:
+        log.info("whatanime init...")
+        global whatanime
+        whatanime = whatanime_ga.WhatAnimeClient(config.WHATANIME_TOKEN)
+        log.info("...success! UID: {}".format(whatanime.user_id))
+        global whatanime_disabled
+        whatanime_disabled = False
+    except Exception as exc:
+        log.error("...failure! Reason: {}, whatanime disabled".format(exc))
         log.debug("With trace:\n{}".format(traceback.format_exc()))
 
     # Load info from disk

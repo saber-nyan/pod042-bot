@@ -23,22 +23,22 @@ class ChatState:
     Состояние бота в одной из комнат.
     """
 
+    state_name: str = NONE
     """
     Название запущенного запроса.
     Для отмены используется ``/abort``.
     """
-    state_name: str = NONE
 
+    message_id_to_reply = None
     """
     ID сообщения, на которое необходим ответить для действия.
     """
-    message_id_to_reply = None
 
+    vk_groups: typing.List[VkGroup] = [VkGroup(29937425, "Sailor fuku", "seifuku_blog"), ]  # 10/10 азиаточки
     """
     Список групп, откуда берется контент.
     group_name <-> VkGroup
     """
-    vk_groups: typing.List[VkGroup] = [VkGroup(29937425, "Sailor fuku", "seifuku_blog"), ]  # 10/10 азиаточки
 
     def __init__(self, state_name: str, message_id_to_reply=None, vk_groups=None):
         """

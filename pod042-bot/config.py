@@ -20,6 +20,7 @@ except:
 
 VK_LOGIN = os.getenv('VK_LOGIN', None)  # Угу, ваш (или фейка) логин ВКонтакте. Лучше телефон.
 VK_PASSWORD = os.getenv('VK_PASSWORD', None)  # Да, по другому никак. Проверено.
+WHATANIME_TOKEN = os.getenv('WHATANIME_TOKEN', None)  # Токен whatanime.ga
 
 # Кол-во постов для /vk_pic *на запрос*, не больше ста. Лимит = ITEMS_PER_REQUEST * 25
 VK_ITEMS_PER_REQUEST = os.getenv('VK_ITEMS_PER_REQUEST', 11)
@@ -46,7 +47,7 @@ LOG_TO_STDOUT = (False if 'LOG_TO_STDOUT_DISABLE' in os.environ else True)
 # Логгировать в файл?
 LOG_TO_FILE = (False if 'LOG_TO_FILE_DISABLE' in os.environ else True)
 
-# Логгировать все сообщения
+# Логгировать все сообщения. Логи не чистятся, через некоторое время будут весить по 1ГБ/файл!
 LOG_INPUT = (True if 'LOG_INPUT' in os.environ else False)
 #################################################
 # BUILTIN: RESOURCES! ###########################
