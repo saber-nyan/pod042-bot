@@ -5,6 +5,8 @@ pod042-bot
 
 Имеет смысл использовать в групповых чатах.
 
+Можно попробовать здесь, но он часто оффлайн: `@pod042_bot <https://t.me/pod042_bot>`_
+
 .. image:: https://i.imgur.com/ORL9f5E.png
 
 Используется `pyTelegramBotAPI <https://github.com/eternnoir/pyTelegramBotAPI>`_,
