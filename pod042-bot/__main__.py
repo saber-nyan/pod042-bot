@@ -410,8 +410,7 @@ def bot_cmd_configuration_vk_clear(msg: Message):
     if chat_in_state(msg, chat_state.CONFIGURE_VK_GROUPS):
         chat_id = msg.chat.id
         chat_states[chat_id].vk_groups.clear()
-        chat_states[chat_id].state_name = chat_state.NONE
-        bot.send_message(chat_id, "Выполнено, вернулся в основной режим.")
+        bot.send_message(chat_id, "Выполнено.")
 
 
 @bot.message_handler(commands=["config_vk", ])
@@ -465,9 +464,9 @@ def bot_cmd_vk_pic(msg: Message):
         "version": VK_VER,
     }, limit=config.VK_ITEMS_PER_REQUEST * 25)  # 275 постов по умолчанию
     max_size_url = "ERROR"
+    log.debug("items count: {}".format(len(response["items"])))
     chosen = False
     while not chosen:
-        log.debug("items count: {}".format(len(response["items"])))
         chosen_post: dict = random.choice(response["items"])
         if chosen_post["marked_as_ads"] == 1:
             log.debug("skip (ad)")
@@ -477,7 +476,7 @@ def bot_cmd_vk_pic(msg: Message):
             continue
         for attach in chosen_post["attachments"]:
             if "photo" in attach:
-                log.debug("found!")
+                log.debug("found photo!")
                 photo_attach = attach["photo"]
                 log.debug("attach {}".format(photo_attach))
                 max_size = 75
@@ -491,6 +490,18 @@ def bot_cmd_vk_pic(msg: Message):
                 max_size_url = photo_attach["photo_" + str(max_size)]
                 chosen = True
                 break
+            elif "doc" in attach:
+                log.debug("photo not found, found doc!")
+                doc_attach = attach["doc"]
+                if doc_attach["ext"] != "gif":
+                    log.debug("but it isn\'t gif...")
+                    continue
+                max_size_url = doc_attach["url"]
+                chosen = True
+                break
+            else:
+                log.debug("not found!")
+
     bot.send_message(chat_id, "{}\n"
                               "Из https://vk.com/{}".format(max_size_url, chosen_group.url_name))
 
@@ -653,28 +664,10 @@ def bot_all_messages(msg: Message):
         dtime = datetime.fromtimestamp(msg.date).strftime('%Y-%m-%d %H:%M:%S')
         if msg.text is not None:
             out_str = "({}) {}:\n" \
-                      "\t{}\n".format(dtime, user.username, msg.text)
+                      "{}\n\n".format(dtime, user.username, msg.text)
         else:
-            # noinspection PyBroadException
-            try:
-                obj = msg.__dict__[msg.content_type]
-                mime_type: str = obj.mime_type
-                filename: str = obj.file_name
-            except:
-                # noinspection PyBroadException
-                try:
-                    obj: PhotoSize = msg.__dict__[msg.content_type][-1]
-                    log.debug("{}".format(obj))
-                    mime_type: str = "{0:.1f}KB".format(obj.file_size / 1024)
-                    filename: str = "{}x{}".format(obj.width, obj.height)
-                except:
-                    mime_type = "err"
-                    filename = "err"
-                    log.info("{}".format(traceback.format_exc()))
-
             out_str = "({}) {}:\n" \
-                      "\t*{}* -- ({}) {}\n" \
-                      "\t~~{}~~\n".format(dtime, user.username, msg.content_type, mime_type, filename, msg.caption)
+                      "*{}* {}\n\n".format(dtime, user.username, msg.content_type, msg.caption)
         file_instance.write(out_str)
         file_instance.flush()
 
@@ -722,6 +715,7 @@ def save_chat_states():
             log.info("...success!")
     except Exception as exc:
         log.warning("can\'t save info: {}".format(exc))
+    log.info("-=-=-= EXIT =-=-=-")
 
 
 # noinspection PyUnusedLocal
@@ -754,6 +748,8 @@ def main() -> int:
     # Prepare logger
     global log
     log = prepare_logger()
+
+    log.info("-=-=-= NEW LAUNCH =-=-=-")
 
     # Prepare resources
     global soundboard_jojo_sounds
@@ -807,10 +803,10 @@ def main() -> int:
     users_save_path = os.path.join(root_path, "users.pkl")
     log.info("loading info from {}...".format(root_path))
     try:
-        with open(states_save_path, "r+b") as states_file:
+        with open(states_save_path, "rb") as states_file:
             global chat_states
             chat_states = pickle.load(states_file)
-            with open(users_save_path, "r+b") as users_file:
+            with open(users_save_path, "rb") as users_file:
                 global users_dict
                 users_dict = pickle.load(users_file)
             log.info("...success!")
@@ -841,7 +837,8 @@ if __name__ == '__main__':
         except Exception as e:
             e_str = "Unknown exception was raised!\n" \
                     "You can report issue w/ traceback at:\n" \
-                    "https://github.com/saber-nyan/pod042-bot/issues\n\n" \
+                    "https://github.com/saber-nyan/pod042-bot/issues\n" \
+                    "(But do not report problems with Telegram server or network connection!)\n\n" \
                     "{}".format(traceback.format_exc())
             if log is None:
                 log = prepare_logger()
