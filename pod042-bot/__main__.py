@@ -715,7 +715,6 @@ def save_chat_states():
             log.info("...success!")
     except Exception as exc:
         log.warning("can\'t save info: {}".format(exc))
-    log.info("-=-=-= EXIT =-=-=-")
 
 
 # noinspection PyUnusedLocal
@@ -728,6 +727,7 @@ def exit_handler(sig, frame):
     for file in messages_log_files.values():
         if not file.closed:
             file.close()
+    log.info("-=-=-= EXIT =-=-=-")
     sys.exit(EXIT_SUCCESS)
 
 
