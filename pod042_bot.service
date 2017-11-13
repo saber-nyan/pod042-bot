@@ -1,0 +1,32 @@
+[Unit]
+Description=Yet another useless Telegram bot
+Documentation=https://github.com/saber-nyan/pod042-bot/blob/master/README.rst
+# Ждем сеть. Мог написать здесь фигню...
+Wants=network-online.target
+After=network.target network-online.target
+
+[Service]
+Type=simple
+# Путь до python в вашей *virtualenv*!
+ExecStart=/home/saber-nyan/Documents/WORKDIR/venv/bin/python -m pod042-bot
+# Путь до файла с env-переменными.
+# Подробнее: https://coreos.com/os/docs/latest/using-environment-variables-in-systemd-units.html#environmentfile-directive
+# О необходимых (и не очень) переменных смотрите в README.rst и pod042-bot/setup.py.
+EnvironmentFile=/home/saber-nyan/Documents/WORKDIR/env.txt
+# Ваш юзер. Нет, так-то и из-под рута запустить можно, но кто может уверенно сказать,
+# что в скрипте на ~900 строчек нет какого-нибудь `rm -fr /*`?
+User=saber-nyan
+Group=users
+Nice=-5
+# Писал об этом в ридми: бот не перезапускается при краше.
+# А краши бывают часто из-за серверов Telegram %%и моего плохого соединения с сетью%%.
+RestartSec=1s
+Restart=always
+# Не придумал пока, как это сделать по человечески.
+# Но без этого нельзя -- бот должен иметь права
+# записи в текущую директорию или отвалится ВК.
+WorkingDirectory=/home/saber-nyan
+
+[Install]
+Alias=pod042-bot pod042_bot pod042
+WantedBy=multi-user.target

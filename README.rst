@@ -79,5 +79,13 @@ pod042-bot
     
     # Запускаем!
     $ python -m pod042-bot
-
-*Примечание: теперь бот выходит при первом же Exception. Рекомендую оборачивать в AutoRestart service. Чуть позже выложу пример.*
+    
+    # Кстати, теперь в комплекте поставляется файл systemd unit. Рекомендую им воспользоваться - автоперезапуск!
+    $ sudo cp ./pod042_bot.service /etc/systemd/system/
+    # Для корректной работы его содержимое необходимо отредактировать. Внутри все расписано, бгг
+    $ sudo nano /etc/systemd/system/pod042_bot.service
+    
+    # Тестируем. При ошибках смотрите `systemctl status pod042_bot`
+    $ sudo systemctl start pod042_bot
+    # Если все прошло успешно - добавляем в автозапуск
+    $ sudo systemctl enable pod042_bot
