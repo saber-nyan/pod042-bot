@@ -12,7 +12,10 @@ from urllib.parse import quote
 import requests
 from PIL import Image
 
-import config
+try:
+    from . import config
+except ImportError:
+    import config
 
 ENDPOINT: str = "https://whatanime.ga"
 tmp_path = os.path.join(config.BOT_HOME, "tmp")
