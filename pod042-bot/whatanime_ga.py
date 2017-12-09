@@ -7,14 +7,15 @@ import json
 import os
 import typing
 from io import BytesIO
-from pathlib import Path
 from urllib.parse import quote
 
 import requests
 from PIL import Image
 
+import config
+
 ENDPOINT: str = "https://whatanime.ga"
-root_path = os.path.join(Path.home(), ".pod042-bot")
+tmp_path = os.path.join(config.BOT_HOME, "tmp")
 
 
 class WhatAnimeResult:
@@ -142,7 +143,7 @@ class WhatAnimeResult:
         """
         Загружает миниатюру.
         """
-        thumb_filename = os.path.join(root_path, "thumb_{}.jpg".format(self.filename))
+        thumb_filename = os.path.join(tmp_path, "thumb_{}.jpg".format(self.filename))
         with open(thumb_filename, mode="wb") as file:
             response = requests.get("{}/thumbnail.php".format(ENDPOINT), params=self.request_params)
             file.write(response.content)
@@ -154,7 +155,7 @@ class WhatAnimeResult:
 
         :except: при отсутствии превью
         """
-        prev_filename = os.path.join(root_path, "prev_{}.mp4".format(self.filename))
+        prev_filename = os.path.join(tmp_path, "prev_{}.mp4".format(self.filename))
         with open(prev_filename, mode="wb") as file:
             response = requests.get("{}/preview.php".format(ENDPOINT), params=self.request_params)
             file.write(response.content)
@@ -237,7 +238,7 @@ class WhatAnimeClient:
             except OSError as exc:
                 raise IOError("file is not a picture") from exc
             out = BytesIO()
-            img.save(out, "JPEG", quality=85)
+            img.save(out, "JPEG", quality=90)
         # Потратил 1.5 часа на отладку... оказалось, нужно просто написать "utf-8": к строке добавлялись b''
         # noinspection PyUnboundLocalVariable
         base64_encoded_image: str = str(base64.b64encode(out.getvalue()), "utf-8")

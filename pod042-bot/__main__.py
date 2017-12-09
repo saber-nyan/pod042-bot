@@ -14,11 +14,10 @@ import sys
 import traceback
 import typing
 from datetime import datetime
-from pathlib import Path
 
 import requests
 import telebot
-from pkg_resources import resource_stream, resource_listdir
+from pkg_resources import resource_stream
 from telebot.types import Message, User, Chat, PhotoSize, File, Document, ForceReply
 from vk_api import vk_api, VkTools
 from vk_api.vk_api import VkApiMethod
@@ -46,8 +45,8 @@ chat_states: typing.Dict[int, chat_state.ChatState] = {}
 msg.chat.id <-> ChatState
 """
 
-soundboard_jojo_sounds: list = []
-soundboard_gachi_sounds: list = []
+# soundboard_jojo_sounds: list = []
+# soundboard_gachi_sounds: list = []
 
 messages_log_files: typing.Dict[int, io.StringIO] = {}
 """
@@ -57,7 +56,9 @@ msg.chat.id <-> file stream (io.StringIO)
 
 log: logging.Logger = None
 
-root_path = os.path.join(Path.home(), ".pod042-bot")
+logs_path = os.path.join(config.BOT_HOME, "logs")
+saves_path = os.path.join(config.BOT_HOME, "saves")
+tmp_path = os.path.join(config.BOT_HOME, "tmp")
 
 bot = telebot.TeleBot(config.BOT_TOKEN, num_threads=config.NUM_THREADS)
 whatanime: whatanime_ga.WhatAnimeClient = None
@@ -190,7 +191,7 @@ def bot_process_whatanime(msg: Message):
                                   chat_id, status_msg.message_id)
             bot.send_message(chat_id, "Объем данных превышает 2МБ, отменено. Жду еще одного сообщения или /abort!")
             return
-        search_file_path = os.path.join(root_path, "search_{}".format(msg.message_id))
+        search_file_path = os.path.join(tmp_path, "search_{}".format(msg.message_id))
         with open(search_file_path, mode="wb") as file:
             file.write(data)
     except Exception as exc:
@@ -343,42 +344,42 @@ def bot_process_configuration_vk(msg: Message):
         bot.send_message(msg.chat.id, out_msg, parse_mode="HTML")
 
 
-@bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.SOUNDBOARD_JOJO) and msg.text.startswith("/"))
-def bot_process_soundboard_jojo(msg: Message):
-    """
-    Отсылает выбранный звук из `JoJo's Bizarre Adventure`.
-
-    :param Message msg: сообщение
-    """
-    bot_all_messages(msg)
-    sound_name = msg.text[1:]  # strip '/'
-    if config.BOT_USERNAME in sound_name:
-        sound_name = sound_name.replace("@" + config.BOT_USERNAME, "")  # strip @bot name
-    log.debug("Got JOJO soundboard element: {}".format(sound_name))
-    if sound_name in soundboard_jojo_sounds:
-        bot.send_chat_action(msg.chat.id, "record_audio")
-        bot.send_voice(msg.chat.id, resource_stream(config.JOJO, sound_name + '.mp3'))
-    else:
-        bot.send_message(msg.chat.id, "Не нашел такого ау<b>дио</b>!", parse_mode="HTML")
-
-
-@bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.SOUNDBOARD_GACHI) and msg.text.startswith("/"))
-def bot_process_soundboard_gachi(msg: Message):
-    """
-    Отсылает выбранный звук из `Gachimuchi`.
-
-    :param Message msg: сообщение
-    """
-    bot_all_messages(msg)
-    sound_name = msg.text[1:]  # strip '/'
-    if config.BOT_USERNAME in sound_name:
-        sound_name = sound_name.replace("@" + config.BOT_USERNAME, "")  # strip @bot name
-    log.debug("Got GACHI soundboard element: {}".format(sound_name))
-    if sound_name in soundboard_gachi_sounds:
-        bot.send_chat_action(msg.chat.id, "record_audio")
-        bot.send_voice(msg.chat.id, resource_stream(config.GACHI, sound_name + '.mp3'))
-    else:
-        bot.send_message(msg.chat.id, "Не нашел такого ау<b>дио</b>!", parse_mode="HTML")
+# @bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.SOUNDBOARD_JOJO) and msg.text.startswith("/"))
+# def bot_process_soundboard_jojo(msg: Message):
+#     """
+#     Отсылает выбранный звук из `JoJo's Bizarre Adventure`.
+#
+#     :param Message msg: сообщение
+#     """
+#     bot_all_messages(msg)
+#     sound_name = msg.text[1:]  # strip '/'
+#     if config.BOT_USERNAME in sound_name:
+#         sound_name = sound_name.replace("@" + config.BOT_USERNAME, "")  # strip @bot name
+#     log.debug("Got JOJO soundboard element: {}".format(sound_name))
+#     if sound_name in soundboard_jojo_sounds:
+#         bot.send_chat_action(msg.chat.id, "record_audio")
+#         bot.send_voice(msg.chat.id, resource_stream(config.JOJO, sound_name + '.mp3'))
+#     else:
+#         bot.send_message(msg.chat.id, "Не нашел такого ау<b>дио</b>!", parse_mode="HTML")
+#
+#
+# @bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.SOUNDBOARD_GACHI) and msg.text.startswith("/"))
+# def bot_process_soundboard_gachi(msg: Message):
+#     """
+#     Отсылает выбранный звук из `Gachimuchi`.
+#
+#     :param Message msg: сообщение
+#     """
+#     bot_all_messages(msg)
+#     sound_name = msg.text[1:]  # strip '/'
+#     if config.BOT_USERNAME in sound_name:
+#         sound_name = sound_name.replace("@" + config.BOT_USERNAME, "")  # strip @bot name
+#     log.debug("Got GACHI soundboard element: {}".format(sound_name))
+#     if sound_name in soundboard_gachi_sounds:
+#         bot.send_chat_action(msg.chat.id, "record_audio")
+#         bot.send_voice(msg.chat.id, resource_stream(config.GACHI, sound_name + '.mp3'))
+#     else:
+#         bot.send_message(msg.chat.id, "Не нашел такого ау<b>дио</b>!", parse_mode="HTML")
 
 
 @bot.message_handler(commands=['add', ])
@@ -506,44 +507,44 @@ def bot_cmd_vk_pic(msg: Message):
                               "Из https://vk.com/{}".format(max_size_url, chosen_group.url_name))
 
 
-@bot.message_handler(commands=["soundboard_jojo", ])
-def bot_cmd_soundboard_jojo(msg: Message):
-    """
-    JoJo's Bizarre Adventure soundboard
-
-    :param Message msg: сообщение
-    """
-    bot_all_messages(msg)
-    chat_id = msg.chat.id
-    chat_states[chat_id].state_name = chat_state.SOUNDBOARD_JOJO
-    sounds_list = ""
-    for sound in soundboard_jojo_sounds:
-        sounds_list += ("/" + sound + "\n")
-    out_msg = "Вошел в режим <b>JoJo's Bizarre Adventure soundboard</b>!\n" \
-              "Напиши /abort для выхода.\n\n" \
-              "Доступные звуки:\n" \
-              "{}".format(sounds_list)
-    bot.send_message(chat_id, out_msg, parse_mode="HTML")
-
-
-@bot.message_handler(commands=["soundboard_gachi", ])
-def bot_cmd_soundboard_gachi(msg: Message):
-    """
-    Gachimuchi soundboard
-
-    :param Message msg: сообщение
-    """
-    bot_all_messages(msg)
-    chat_id = msg.chat.id
-    chat_states[chat_id].state_name = chat_state.SOUNDBOARD_GACHI
-    sounds_list = ""
-    for sound in soundboard_gachi_sounds:
-        sounds_list += ("/" + sound + "\n")
-    out_msg = "Вошел в режим <b>Gachimuchi soundboard</b>!\n" \
-              "Напиши /abort для выхода.\n\n" \
-              "Доступные звуки:\n" \
-              "{}".format(sounds_list)
-    bot.send_message(chat_id, out_msg, parse_mode="HTML")
+# @bot.message_handler(commands=["soundboard_jojo", ])
+# def bot_cmd_soundboard_jojo(msg: Message):
+#     """
+#     JoJo's Bizarre Adventure soundboard
+#
+#     :param Message msg: сообщение
+#     """
+#     bot_all_messages(msg)
+#     chat_id = msg.chat.id
+#     chat_states[chat_id].state_name = chat_state.SOUNDBOARD_JOJO
+#     sounds_list = ""
+#     for sound in soundboard_jojo_sounds:
+#         sounds_list += ("/" + sound + "\n")
+#     out_msg = "Вошел в режим <b>JoJo's Bizarre Adventure soundboard</b>!\n" \
+#               "Напиши /abort для выхода.\n\n" \
+#               "Доступные звуки:\n" \
+#               "{}".format(sounds_list)
+#     bot.send_message(chat_id, out_msg, parse_mode="HTML")
+#
+#
+# @bot.message_handler(commands=["soundboard_gachi", ])
+# def bot_cmd_soundboard_gachi(msg: Message):
+#     """
+#     Gachimuchi soundboard
+#
+#     :param Message msg: сообщение
+#     """
+#     bot_all_messages(msg)
+#     chat_id = msg.chat.id
+#     chat_states[chat_id].state_name = chat_state.SOUNDBOARD_GACHI
+#     sounds_list = ""
+#     for sound in soundboard_gachi_sounds:
+#         sounds_list += ("/" + sound + "\n")
+#     out_msg = "Вошел в режим <b>Gachimuchi soundboard</b>!\n" \
+#               "Напиши /abort для выхода.\n\n" \
+#               "Доступные звуки:\n" \
+#               "{}".format(sounds_list)
+#     bot.send_message(chat_id, out_msg, parse_mode="HTML")
 
 
 @bot.message_handler(commands=["whatanime", ])
@@ -657,7 +658,7 @@ def bot_all_messages(msg: Message):
         global messages_log_files
         if chat_id not in messages_log_files:
             base_name = "chat_{}.log".format(chat.title if chat.title is not None else chat.username)
-            log_path = os.path.join(root_path, base_name)
+            log_path = os.path.join(logs_path, base_name)
             messages_log_files[chat_id] \
                 = open(log_path, mode="at", buffering=1, encoding="utf-8", errors="backslashreplace")
         file_instance: io.StringIO = messages_log_files[chat_id]
@@ -689,11 +690,11 @@ def prepare_logger() -> logging.Logger:
         ch.setLevel(loglevel)
         l_log.addHandler(ch)
     if config.LOG_TO_FILE:
-        fh = logging.FileHandler(os.path.join(root_path, "main.log"))
+        fh = logging.FileHandler(os.path.join(logs_path, "main.log"))
         fh.setFormatter(formatter)
         fh.setLevel(loglevel)
         l_log.addHandler(fh)
-        l_log.info("Logs path: {}".format(os.path.join(root_path, "main.log")))
+        l_log.info("Logs path: {}".format(os.path.join(logs_path, "main.log")))
     return l_log
 
 
@@ -701,12 +702,12 @@ def save_chat_states():
     """
     Сохряняет состояние чатов и пользователей в ``.pkl``-файл.
     """
-    states_save_path = os.path.join(root_path, "states.pkl")
-    users_save_path = os.path.join(root_path, "users.pkl")
+    states_save_path = os.path.join(saves_path, "states.pkl")
+    users_save_path = os.path.join(saves_path, "users.pkl")
     global log
     if log is None:
         log = prepare_logger()
-    log.info("saving info to {}...".format(root_path))
+    log.info("saving info to {}...".format(saves_path))
     try:
         with open(states_save_path, "w+b") as states_file:
             pickle.dump(chat_states, states_file, pickle.HIGHEST_PROTOCOL)
@@ -739,11 +740,17 @@ def main() -> int:
     :rtype: int
     """
     # Prepare home dir
-    if not os.path.exists(root_path):
-        os.makedirs(root_path)
-    elif not os.path.isdir(root_path):
-        os.remove(root_path)
-        os.makedirs(root_path)
+    if not os.path.exists(config.BOT_HOME):
+        os.makedirs(config.BOT_HOME)
+        os.makedirs(logs_path)
+        os.makedirs(saves_path)
+        os.makedirs(tmp_path)
+    elif not os.path.isdir(config.BOT_HOME):
+        os.remove(config.BOT_HOME)
+        os.makedirs(config.BOT_HOME)
+        os.makedirs(logs_path)
+        os.makedirs(saves_path)
+        os.makedirs(tmp_path)
 
     # Prepare logger
     global log
@@ -752,20 +759,22 @@ def main() -> int:
     log.info("-=-=-= NEW LAUNCH =-=-=-")
 
     # Prepare resources
-    global soundboard_jojo_sounds
-    for states_file in resource_listdir(config.JOJO, ""):
-        if states_file.endswith(".mp3"):
-            soundboard_jojo_sounds.append(states_file[:-4])  # strip '.mp3'
-
-    global soundboard_gachi_sounds
-    for states_file in resource_listdir(config.GACHI, ""):
-        if states_file.endswith(".mp3"):
-            soundboard_gachi_sounds.append(states_file[:-4])
+    # global soundboard_jojo_sounds
+    # for states_file in resource_listdir(config.JOJO, ""):
+    #     if states_file.endswith(".mp3"):
+    #         soundboard_jojo_sounds.append(states_file[:-4])  # strip '.mp3'
+    #
+    # global soundboard_gachi_sounds
+    # for states_file in resource_listdir(config.GACHI, ""):
+    #     if states_file.endswith(".mp3"):
+    #         soundboard_gachi_sounds.append(states_file[:-4])
 
     # Init VK API
     try:
         log.info("vk init...")
-        vk_session = vk_api.VkApi(login=config.VK_LOGIN, password=config.VK_PASSWORD)
+        vk_session = vk_api.VkApi(login=config.VK_LOGIN, password=config.VK_PASSWORD,
+                                  config_filename=os.path.join(saves_path, 'vk_config.v2.json'),
+                                  api_version=str(VK_VER))
         vk_session.auth()
         global vk
         vk = vk_session.get_api()
@@ -799,9 +808,9 @@ def main() -> int:
         log.debug("With trace:\n{}".format(traceback.format_exc()))
 
     # Load info from disk
-    states_save_path = os.path.join(root_path, "states.pkl")
-    users_save_path = os.path.join(root_path, "users.pkl")
-    log.info("loading info from {}...".format(root_path))
+    states_save_path = os.path.join(saves_path, "states.pkl")
+    users_save_path = os.path.join(saves_path, "users.pkl")
+    log.info("loading info from {}...".format(saves_path))
     try:
         with open(states_save_path, "rb") as states_file:
             global chat_states
@@ -819,6 +828,8 @@ def main() -> int:
     log.info("Starting polling")
     bot.polling(none_stop=True)
     # Block thread!
+
+    log.info("Stopped!")
 
     return EXIT_SUCCESS
 
@@ -844,4 +855,5 @@ if __name__ == '__main__':
                 log = prepare_logger()
             log.critical(e_str)
             save_chat_states()
+            log.info("Stopped!")
             sys.exit(EXIT_UNKNOWN)

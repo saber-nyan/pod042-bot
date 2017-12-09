@@ -8,6 +8,8 @@ import sys
 
 # FROM ENV: SETTINGS! ###########################
 # noinspection PyBroadException
+from pathlib import Path
+
 try:
     BOT_TOKEN = os.environ['BOT_TOKEN']  # Токен, полученный у @BotFather.
     BOT_USERNAME = os.environ['BOT_USERNAME']  # Username бота.
@@ -17,6 +19,9 @@ except:
 
 # Из environmental variables:
 # настройка = os.getenv('ключ', умолчание)
+
+# Домашняя директория бота для логов и сохранений. Должны быть r/w права.
+BOT_HOME = os.getenv('BOT_HOME', os.path.join(Path.home(), '.pod042-bot'))
 
 VK_LOGIN = os.getenv('VK_LOGIN', None)  # Угу, ваш (или фейка) логин ВКонтакте. Лучше телефон.
 VK_PASSWORD = os.getenv('VK_PASSWORD', None)  # Да, по другому никак. Проверено.
@@ -53,15 +58,15 @@ LOG_INPUT = (True if 'LOG_INPUT' in os.environ else False)
 # BUILTIN: RESOURCES! ###########################
 ROOT = 'pod042-bot.resources'
 
-# VIDEOS #####################
+# # VIDEOS #####################
 VIDEOS = ROOT + '.videos'
-###
+# ###
 CODFISH = 'codfish.mp4'
-##############################
-# AUDIOS #####################
-AUDIOS = ROOT + '.audios'
-# JOJO ######
-JOJO = AUDIOS + '.jojo'
-# GACHI #####
-GACHI = AUDIOS + '.gachi'
-#################################################
+# ##############################
+# # AUDIOS #####################
+# AUDIOS = ROOT + '.audios'
+# # JOJO ######
+# JOJO = AUDIOS + '.jojo'
+# # GACHI #####
+# GACHI = AUDIOS + '.gachi'
+# #################################################
