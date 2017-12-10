@@ -12,7 +12,6 @@ from pathlib import Path
 
 try:
     BOT_TOKEN = os.environ['BOT_TOKEN']  # Токен, полученный у @BotFather.
-    BOT_USERNAME = os.environ['BOT_USERNAME']  # Username бота.
 except:
     print('Please set needed env variables!\nRead more in config.py.', file=sys.stderr)
     sys.exit(-1)
@@ -26,6 +25,29 @@ BOT_HOME = os.getenv('BOT_HOME', os.path.join(Path.home(), '.pod042-bot'))
 VK_LOGIN = os.getenv('VK_LOGIN', None)  # Угу, ваш (или фейка) логин ВКонтакте. Лучше телефон.
 VK_PASSWORD = os.getenv('VK_PASSWORD', None)  # Да, по другому никак. Проверено.
 WHATANIME_TOKEN = os.getenv('WHATANIME_TOKEN', None)  # Токен whatanime.ga
+
+# Адрес сервера, откуда берутся звуки для inline.
+# Сервер должен быть доступен извне!
+# В корне сервера должен лежать index.json c таким содержанием:
+# [
+#   {
+#     "pretty_name": "then you and i should uhh settle it then",
+#     "category": "gachi",
+#     "full_url": "\/soundboard\/gachi\/then_you_and_i_should_uhh_settle_it_then.mp3"
+#   },
+#   {
+#     "pretty_name": "huh1",
+#     "category": "gachi",
+#     "full_url": "\/soundboard\/gachi\/huh1.mp3"
+#   }
+# ]
+# где:
+# pretty_name : имя для отображения в списке
+# category    : категория звука (добавляется к имени для удобного выбора)
+# full_url    : путь к файлу на сервере
+#
+# В формате `http://1.2.3.4:8080` !!!
+SERVER_ADDRESS = os.getenv('SERVER_ADDRESS', None)
 
 # Кол-во постов для /vk_pic *на запрос*, не больше ста. Лимит = ITEMS_PER_REQUEST * 25
 VK_ITEMS_PER_REQUEST = os.getenv('VK_ITEMS_PER_REQUEST', 11)
@@ -58,15 +80,9 @@ LOG_INPUT = (True if 'LOG_INPUT' in os.environ else False)
 # BUILTIN: RESOURCES! ###########################
 ROOT = 'pod042-bot.resources'
 
-# # VIDEOS #####################
+# VIDEOS #####################
 VIDEOS = ROOT + '.videos'
-# ###
+###
 CODFISH = 'codfish.mp4'
-# ##############################
-# # AUDIOS #####################
-# AUDIOS = ROOT + '.audios'
-# # JOJO ######
-# JOJO = AUDIOS + '.jojo'
-# # GACHI #####
-# GACHI = AUDIOS + '.gachi'
-# #################################################
+
+#################################################

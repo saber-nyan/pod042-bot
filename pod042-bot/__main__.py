@@ -15,12 +15,15 @@ import traceback
 import typing
 from datetime import datetime
 
+import pkg_resources
 import requests
 import telebot
-from pkg_resources import resource_stream
-from telebot.types import Message, User, Chat, PhotoSize, File, Document, ForceReply
+from telebot.types import Message, User, Chat, PhotoSize, File, Document, ForceReply, InlineQuery, \
+    InlineQueryResultVoice
 from vk_api import vk_api, VkTools
 from vk_api.vk_api import VkApiMethod
+
+from inline_sound import InlineSound
 
 try:
     from . import chat_state
@@ -45,8 +48,12 @@ chat_states: typing.Dict[int, chat_state.ChatState] = {}
 msg.chat.id <-> ChatState
 """
 
-# soundboard_jojo_sounds: list = []
-# soundboard_gachi_sounds: list = []
+soundbouard_sounds: typing.List[InlineSound] = []
+"""
+Список звуков soundboard для inline-бота.
+"""
+
+inline_disabled = True
 
 messages_log_files: typing.Dict[int, io.StringIO] = {}
 """
@@ -344,44 +351,6 @@ def bot_process_configuration_vk(msg: Message):
         bot.send_message(msg.chat.id, out_msg, parse_mode="HTML")
 
 
-# @bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.SOUNDBOARD_JOJO) and msg.text.startswith("/"))
-# def bot_process_soundboard_jojo(msg: Message):
-#     """
-#     Отсылает выбранный звук из `JoJo's Bizarre Adventure`.
-#
-#     :param Message msg: сообщение
-#     """
-#     bot_all_messages(msg)
-#     sound_name = msg.text[1:]  # strip '/'
-#     if config.BOT_USERNAME in sound_name:
-#         sound_name = sound_name.replace("@" + config.BOT_USERNAME, "")  # strip @bot name
-#     log.debug("Got JOJO soundboard element: {}".format(sound_name))
-#     if sound_name in soundboard_jojo_sounds:
-#         bot.send_chat_action(msg.chat.id, "record_audio")
-#         bot.send_voice(msg.chat.id, resource_stream(config.JOJO, sound_name + '.mp3'))
-#     else:
-#         bot.send_message(msg.chat.id, "Не нашел такого ау<b>дио</b>!", parse_mode="HTML")
-#
-#
-# @bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.SOUNDBOARD_GACHI) and msg.text.startswith("/"))
-# def bot_process_soundboard_gachi(msg: Message):
-#     """
-#     Отсылает выбранный звук из `Gachimuchi`.
-#
-#     :param Message msg: сообщение
-#     """
-#     bot_all_messages(msg)
-#     sound_name = msg.text[1:]  # strip '/'
-#     if config.BOT_USERNAME in sound_name:
-#         sound_name = sound_name.replace("@" + config.BOT_USERNAME, "")  # strip @bot name
-#     log.debug("Got GACHI soundboard element: {}".format(sound_name))
-#     if sound_name in soundboard_gachi_sounds:
-#         bot.send_chat_action(msg.chat.id, "record_audio")
-#         bot.send_voice(msg.chat.id, resource_stream(config.GACHI, sound_name + '.mp3'))
-#     else:
-#         bot.send_message(msg.chat.id, "Не нашел такого ау<b>дио</b>!", parse_mode="HTML")
-
-
 @bot.message_handler(commands=['add', ])
 def bot_cmd_configuration_vk_add(msg: Message):
     """
@@ -507,46 +476,6 @@ def bot_cmd_vk_pic(msg: Message):
                               "Из https://vk.com/{}".format(max_size_url, chosen_group.url_name))
 
 
-# @bot.message_handler(commands=["soundboard_jojo", ])
-# def bot_cmd_soundboard_jojo(msg: Message):
-#     """
-#     JoJo's Bizarre Adventure soundboard
-#
-#     :param Message msg: сообщение
-#     """
-#     bot_all_messages(msg)
-#     chat_id = msg.chat.id
-#     chat_states[chat_id].state_name = chat_state.SOUNDBOARD_JOJO
-#     sounds_list = ""
-#     for sound in soundboard_jojo_sounds:
-#         sounds_list += ("/" + sound + "\n")
-#     out_msg = "Вошел в режим <b>JoJo's Bizarre Adventure soundboard</b>!\n" \
-#               "Напиши /abort для выхода.\n\n" \
-#               "Доступные звуки:\n" \
-#               "{}".format(sounds_list)
-#     bot.send_message(chat_id, out_msg, parse_mode="HTML")
-#
-#
-# @bot.message_handler(commands=["soundboard_gachi", ])
-# def bot_cmd_soundboard_gachi(msg: Message):
-#     """
-#     Gachimuchi soundboard
-#
-#     :param Message msg: сообщение
-#     """
-#     bot_all_messages(msg)
-#     chat_id = msg.chat.id
-#     chat_states[chat_id].state_name = chat_state.SOUNDBOARD_GACHI
-#     sounds_list = ""
-#     for sound in soundboard_gachi_sounds:
-#         sounds_list += ("/" + sound + "\n")
-#     out_msg = "Вошел в режим <b>Gachimuchi soundboard</b>!\n" \
-#               "Напиши /abort для выхода.\n\n" \
-#               "Доступные звуки:\n" \
-#               "{}".format(sounds_list)
-#     bot.send_message(chat_id, out_msg, parse_mode="HTML")
-
-
 @bot.message_handler(commands=["whatanime", ])
 def bot_cmd_whatanime(msg: Message):
     """
@@ -580,10 +509,10 @@ def bot_cmd_codfish(msg: Message):
     words = text.split()
     username = words[-1]  # Get username from orig. message
     bot.send_chat_action(chat_id, "record_video")
-    codfish_video = resource_stream(config.VIDEOS, config.CODFISH)  # Our codfish video
+    codfish_video = pkg_resources.resource_stream(config.VIDEOS, config.CODFISH)  # Our codfish video
     if len(words) <= 1:  # No username
         bot.send_message(chat_id, "Укажи юзернейм кого бить!")
-    elif username == config.BOT_USERNAME:  # Himself
+    elif username == bot.get_me().username:  # Himself
         bot.send_video(chat_id, codfish_video, caption="Хорошенько шлепнул себя треской.")
     elif username in users_dict:  # Search in our users dict (user_id's are unique?)
         raw = requests.get("https://api.telegram.org:443/bot{}/getChatMember?chat_id={}&user_id={}"
@@ -626,6 +555,36 @@ def bot_cmd_anek(msg: Message):
     result = HTML_ANEK_REGEX.search(html_text)
     out_msg = result.group(1) if result else "ERROR"
     bot.send_message(msg.chat.id, "<code>{}</code>".format(out_msg), parse_mode="HTML")
+
+
+@bot.inline_handler(lambda a: True)
+def bot_inline_handler(inline_query: InlineQuery):
+    """
+    Отвечает на inline списокм звуков, полученных с указанного в config сервера.
+
+    FIXME: звуки грузятся в предпросмотре, но не работают при отправке!
+
+    :param InlineQuery inline_query: inline запрос
+    """
+    if inline_disabled:
+        log.info("tried inline, disabled")
+        return
+    log.debug("got inline {}".format(inline_query.query))
+
+    results: typing.List[InlineQueryResultVoice] = []
+    id_counter = 0
+    for sound in soundbouard_sounds:
+        if sound.pretty_name.find(inline_query.query) != -1 or sound.category.find(inline_query.query) != -1:
+            log.info("match {}".format(sound))
+            id_counter += 1
+            results.append(InlineQueryResultVoice(id_counter, config.SERVER_ADDRESS + sound.full_url,
+                                                  title=sound.pretty_name, performer=sound.category))
+    del results[50:]  # Display only 50
+    successfully = bot.answer_inline_query(inline_query.id, results)
+    if successfully:
+        log.debug("Success!")
+    else:
+        log.info("Failure!")
 
 
 @bot.message_handler(func=lambda msg: True,
@@ -758,16 +717,20 @@ def main() -> int:
 
     log.info("-=-=-= NEW LAUNCH =-=-=-")
 
-    # Prepare resources
-    # global soundboard_jojo_sounds
-    # for states_file in resource_listdir(config.JOJO, ""):
-    #     if states_file.endswith(".mp3"):
-    #         soundboard_jojo_sounds.append(states_file[:-4])  # strip '.mp3'
-    #
-    # global soundboard_gachi_sounds
-    # for states_file in resource_listdir(config.GACHI, ""):
-    #     if states_file.endswith(".mp3"):
-    #         soundboard_gachi_sounds.append(states_file[:-4])
+    # Init inline queries
+    try:
+        log.info("inline init...")
+        global soundbouard_sounds
+        response = requests.get(config.SERVER_ADDRESS + "/index.json")
+        json_arr = response.json()
+        for sound in json_arr:
+            soundbouard_sounds.append(InlineSound(sound))
+        global inline_disabled
+        inline_disabled = False
+        log.info("...success!")
+    except Exception as exc:
+        log.error("...failure! Reason: {}, inline disabled".format(exc))
+        log.debug("With trace:\n{}".format(traceback.format_exc()))
 
     # Init VK API
     try:

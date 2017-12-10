@@ -5,7 +5,7 @@ pod042-bot
 
 Имеет смысл использовать в групповых чатах.
 
-Можно попробовать здесь, но он часто оффлайн: `@pod042_bot <https://t.me/pod042_bot>`_
+Можно попробовать здесь: `@pod042_bot <https://t.me/pod042_bot>`_
 
 .. image:: https://i.imgur.com/ORL9f5E.png
 
@@ -63,28 +63,27 @@ pod042-bot
     # Рекомендую завести virtualenv
     $ virtualenv3 ./venv
     $ source ./venv/bin/activate
-    
+
     # Клонируем репозиторий, устанавливаем в virtualenv
     $ git lfs clone https://github.com/saber-nyan/pod042-bot.git
     $ cd pod042-bot
     $ pip install . # Или python ./setup.py install
-    
+
     # Настраиваем бота. Эти обязательны, еще несколько устанавливаемых значений смотрите в congig.py
     $ export BOT_TOKEN='123456789:aBcDeEf3fdovmmcmWimldmsvklnlnNdnmNj' # Токен, полученный у @BotFather
-    $ export BOT_USERNAME='yourKawaii_bot' # Username вашего бота
     # Это опционально, но желательно
     $ export VK_LOGIN='+79261112345' # Логин ВКонтакте. Лучше телефон фейка, есть ненулевая вероятность быть забаненым
     $ export VK_PASSWORD='************' # Пароль ВКонтакте. Эти данные необходимы для работы /vk_pic, увы ¯\_(ツ)_/¯
     $ export WHATANIME_TOKEN='**************' # Токен whatanime.ga. Необходим для работы /whatanime
-    
+
     # Запускаем!
     $ python -m pod042-bot
-    
+
     # Кстати, теперь в комплекте поставляется файл systemd unit. Рекомендую им воспользоваться - автоперезапуск!
     $ sudo cp ./pod042_bot.service /etc/systemd/system/
     # Для корректной работы его содержимое необходимо отредактировать. Внутри все расписано, бгг
     $ sudo nano /etc/systemd/system/pod042_bot.service
-    
+
     # Тестируем. При ошибках смотрите `systemctl status pod042_bot`
     $ sudo systemctl start pod042_bot
     # Если все прошло успешно - добавляем в автозапуск

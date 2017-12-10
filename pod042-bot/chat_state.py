@@ -23,18 +23,18 @@ class ChatState:
     Состояние бота в одной из комнат.
     """
 
-    state_name: str = NONE
+    state_name: str
     """
     Название запущенного запроса.
     Для отмены используется ``/abort``.
     """
 
-    message_id_to_reply = None
+    message_id_to_reply: int
     """
     ID сообщения, на которое необходим ответить для действия.
     """
 
-    vk_groups: typing.List[VkGroup] = [VkGroup(29937425, "Sailor fuku", "seifuku_blog"), ]  # 10/10 азиаточки
+    vk_groups: typing.List[VkGroup]
     """
     Список групп, откуда берется контент.
     group_name <-> VkGroup

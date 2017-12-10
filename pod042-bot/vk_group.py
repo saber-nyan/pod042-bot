@@ -8,9 +8,9 @@ class VkGroup:
     """
     Группа ВКонтакте.
     """
-    vk_id: int = ""
-    name: str = ""
-    url_name: str = ""
+    vk_id: int
+    name: str
+    url_name: str
 
     def __init__(self, vk_id: int, name: str, url_name: str):
         """
