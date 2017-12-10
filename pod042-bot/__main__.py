@@ -23,18 +23,18 @@ from telebot.types import Message, User, Chat, PhotoSize, File, Document, ForceR
 from vk_api import vk_api, VkTools
 from vk_api.vk_api import VkApiMethod
 
-from inline_sound import InlineSound
-
 try:
     from . import chat_state
     from . import config
     from . import vk_group
     from . import whatanime_ga
+    from .inline_sound import InlineSound
 except ImportError:
     import chat_state
     import config
     import vk_group
     import whatanime_ga
+    from inline_sound import InlineSound
 
 users_dict: typing.Dict[str, int] = {}
 """
@@ -577,7 +577,10 @@ def bot_inline_handler(inline_query: InlineQuery):
         if sound.pretty_name.find(inline_query.query) != -1 or sound.category.find(inline_query.query) != -1:
             log.info("match {}".format(sound))
             id_counter += 1
-            results.append(InlineQueryResultVoice(id_counter, config.SERVER_ADDRESS + sound.full_url,
+            # results.append(InlineQueryResultVoice(id_counter, config.SERVER_ADDRESS + sound.full_url,
+            #                                       title=sound.pretty_name, performer=sound.category))
+            results.append(InlineQueryResultVoice(id_counter,
+                                                  "https://cs1-68v4.vk-cdn.net/p20/8d50d5ce23432b.mp3?extra=3-_4WTxn_ypjsAxVx1UTFOOg1YS3H5VimjazxErC-naCCWEcf5b5W5g0GQiA5-jkoUOTJbZzSfjtrJOpBMLuu5-OnVUeWPv3eRIL5Ab54Tk4PN9rX586G8cCBhKnwI1olyMNhFuxc9K0QvK3",
                                                   title=sound.pretty_name, performer=sound.category))
     del results[50:]  # Display only 50
     successfully = bot.answer_inline_query(inline_query.id, results)
