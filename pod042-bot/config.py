@@ -33,12 +33,12 @@ WHATANIME_TOKEN = os.getenv('WHATANIME_TOKEN', None)  # Токен whatanime.ga
 #   {
 #     "pretty_name": "then you and i should uhh settle it then",
 #     "category": "gachi",
-#     "full_url": "\/soundboard\/gachi\/then_you_and_i_should_uhh_settle_it_then.mp3"
+#     "full_url": "/soundboard/gachi/then_you_and_i_should_uhh_settle_it_then.mp3"
 #   },
 #   {
 #     "pretty_name": "huh1",
 #     "category": "gachi",
-#     "full_url": "\/soundboard\/gachi\/huh1.mp3"
+#     "full_url": "/soundboard/gachi/huh1.mp3"
 #   }
 # ]
 # где:
@@ -46,7 +46,7 @@ WHATANIME_TOKEN = os.getenv('WHATANIME_TOKEN', None)  # Токен whatanime.ga
 # category    : категория звука (добавляется к имени для удобного выбора)
 # full_url    : путь к файлу на сервере
 #
-# В формате `http://1.2.3.4:8080` !!!
+# В формате `http://saber-nyan.test.ga`, ОЧЕНЬ ВАЖНО НЕ ИСПОЛЬЗОВАТЬ IP-АДРЕС, РАБОТАЕТ ЛИШЬ С ХОСТНЕЙМОМ
 SERVER_ADDRESS = os.getenv('SERVER_ADDRESS', None)
 
 # Кол-во постов для /vk_pic *на запрос*, не больше ста. Лимит = ITEMS_PER_REQUEST * 25

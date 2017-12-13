@@ -562,8 +562,6 @@ def bot_inline_handler(inline_query: InlineQuery):
     """
     Отвечает на inline списокм звуков, полученных с указанного в config сервера.
 
-    FIXME: звуки грузятся в предпросмотре, но не работают при отправке!
-
     :param InlineQuery inline_query: inline запрос
     """
     if inline_disabled:
@@ -571,23 +569,16 @@ def bot_inline_handler(inline_query: InlineQuery):
         return
     log.debug("got inline {}".format(inline_query.query))
 
-    results: typing.List[InlineQueryResultVoice] = []
+    results = []
     id_counter = 0
     for sound in soundbouard_sounds:
         if sound.pretty_name.find(inline_query.query) != -1 or sound.category.find(inline_query.query) != -1:
-            log.info("match {}".format(sound))
+            if id_counter > 20:
+                break  # Display only 20
             id_counter += 1
-            # results.append(InlineQueryResultVoice(id_counter, config.SERVER_ADDRESS + sound.full_url,
-            #                                       title=sound.pretty_name, performer=sound.category))
-            results.append(InlineQueryResultVoice(id_counter,
-                                                  "https://cs1-68v4.vk-cdn.net/p20/8d50d5ce23432b.mp3?extra=3-_4WTxn_ypjsAxVx1UTFOOg1YS3H5VimjazxErC-naCCWEcf5b5W5g0GQiA5-jkoUOTJbZzSfjtrJOpBMLuu5-OnVUeWPv3eRIL5Ab54Tk4PN9rX586G8cCBhKnwI1olyMNhFuxc9K0QvK3",
+            results.append(InlineQueryResultVoice(id_counter, config.SERVER_ADDRESS + sound.full_url,
                                                   title=sound.pretty_name, performer=sound.category))
-    del results[50:]  # Display only 50
-    successfully = bot.answer_inline_query(inline_query.id, results)
-    if successfully:
-        log.debug("Success!")
-    else:
-        log.info("Failure!")
+    bot.answer_inline_query(inline_query.id, results)
 
 
 @bot.message_handler(func=lambda msg: True,
