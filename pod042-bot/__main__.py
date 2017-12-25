@@ -164,8 +164,12 @@ def bot_cmd_list_chats(msg: Message):
     chat_id = msg.chat.id
     result = ""
     for other_chat_id, other_chat_state in chat_states.items():
-        result += "<code>{}</code>: {}, state <code>{}</code>\n" \
-            .format(other_chat_id, other_chat_state.title, other_chat_state.state_name)
+        if hasattr(other_chat_state, "title"):
+            result += "<code>{}</code>: {}, state <code>{}</code>\n" \
+                .format(other_chat_id, other_chat_state.title, other_chat_state.state_name)
+        else:
+            result += "<code>{}</code>: state <code>{}</code>\n" \
+                .format(other_chat_id, other_chat_state.state_name)
     bot.send_message(chat_id, result, parse_mode="HTML")
 
 
