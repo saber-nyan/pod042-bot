@@ -18,6 +18,7 @@ from datetime import datetime
 import pkg_resources
 import requests
 import telebot
+from telebot import util
 from telebot.types import Message, User, Chat, PhotoSize, File, Document, ForceReply, InlineQuery, \
     InlineQueryResultVoice
 from vk_api import vk_api, VkTools
@@ -48,7 +49,7 @@ chat_states: typing.Dict[int, chat_state.ChatState] = {}
 msg.chat.id <-> ChatState
 """
 
-soundbouard_sounds: typing.List[InlineSound] = []
+soundboard_sounds: typing.List[InlineSound] = []
 """
 Список звуков soundboard для inline-бота.
 """
@@ -146,10 +147,15 @@ def bot_cmd_eval(msg: Message):
         return
     cmd: str = msg.text.split(' ', 1)[1]
     try:
-        result = eval(cmd)
+        cmd = "cmd_result = " + cmd
+        log.debug("compiling {}...".format(cmd))
+        cmd_compiled = compile(cmd, "<string>", "exec")
+        exec(cmd_compiled, globals(), locals())
+        result = locals().get("cmd_result")
     except Exception as exc:
         result = "Exception: {}\n{}".format(exc, traceback.format_exc())
-    bot.send_message(chat_id, str(result))
+    for splitted in util.split_string(str(result), 2000):
+        bot.send_message(chat_id, splitted)
 
 
 @bot.message_handler(commands=["list_chats", ], func=is_admin)
@@ -651,7 +657,7 @@ def bot_inline_handler(inline_query: InlineQuery):
 
     results = []
     id_counter = 0
-    for sound in soundbouard_sounds:
+    for sound in soundboard_sounds:
         if sound.pretty_name.find(inline_query.query) != -1 or sound.category.find(inline_query.query) != -1:
             if id_counter > 20:
                 break  # Display only 20
@@ -798,11 +804,11 @@ def main() -> int:
     # Init inline queries
     try:
         log.info("inline init...")
-        global soundbouard_sounds
+        global soundboard_sounds
         response = requests.get(config.SERVER_ADDRESS + "/index.json")
         json_arr = response.json()
         for sound in json_arr:
-            soundbouard_sounds.append(InlineSound(sound))
+            soundboard_sounds.append(InlineSound(sound))
         global inline_disabled
         inline_disabled = False
         log.info("...success!")
