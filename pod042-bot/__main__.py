@@ -100,6 +100,21 @@ def chat_in_state(chat_msg: Message, state_name: str) -> bool:
         return False
 
 
+def is_admin(chat_msg: Message) -> bool:
+    """
+    Проверяет, отправлено ли сообщение администратором бота.
+
+    :param Message chat_msg: сообщение из чата
+    :return: ``True``, если отправитель является администратором
+    :rtype: bool
+    """
+    if config.ADMIN_USERNAME is None:
+        return False
+    sender: User = chat_msg.from_user
+    log.debug("{} admin check...".format(sender.username))
+    return True if sender.username == config.ADMIN_USERNAME else False
+
+
 @bot.message_handler(commands=["abort", ])
 def bot_cmd_abort(msg: Message):
     """
@@ -114,6 +129,67 @@ def bot_cmd_abort(msg: Message):
         bot.send_message(chat_id, "Отменено.")
     else:
         bot.send_message(chat_id, "Я ничем не занят!")
+
+
+@bot.message_handler(commands=["eval", ], func=is_admin)
+def bot_cmd_eval(msg: Message):
+    """
+    Позволяет запустить любой кусок Python кода на сервере.
+    Доступно только администратору.
+
+    :param Message msg: сообщение
+    """
+    bot_all_messages(msg)
+    chat_id = msg.chat.id
+    if len(msg.text.split()) <= 1:
+        bot.send_message(chat_id, "Укажите строчку кода после команды!")
+        return
+    cmd: str = msg.text.split(' ', 1)[1]
+    try:
+        result = eval(cmd)
+    except Exception as exc:
+        result = "Exception: {}\n{}".format(exc, traceback.format_exc())
+    bot.send_message(chat_id, str(result))
+
+
+@bot.message_handler(commands=["list_chats", ], func=is_admin)
+def bot_cmd_list_chats(msg: Message):
+    """
+    Возвращает список чатов и их состояние.
+    Доступно только администратору.
+
+    :param Message msg: сообщение
+    """
+    bot_all_messages(msg)
+    chat_id = msg.chat.id
+    result = ""
+    for other_chat_id, other_chat_state in chat_states.items():
+        result += "<code>{}</code>: {}, state <code>{}</code>\n" \
+            .format(other_chat_id, other_chat_state.title, other_chat_state.state_name)
+    bot.send_message(chat_id, result, parse_mode="HTML")
+
+
+@bot.message_handler(commands=["send_msg", ], func=is_admin)
+def bot_cmd_send_msg(msg: Message):
+    """
+    Отправляет собщение на указанный ``chat_id``.
+    Доступно только администратору.
+
+    :param Message msg: сообщение
+    """
+    bot_all_messages(msg)
+    chat_id = msg.chat.id
+    in_text = msg.text
+    if len(in_text.split()) < 3:
+        bot.send_message(chat_id, "Команда работает в следующем формате:\n"
+                                  "<code>/send_msg chat_id msg</code>", parse_mode="HTML")
+        return
+    _, out_chat_id, out_text = in_text.split(' ', 2)
+    try:
+        bot.send_message(int(out_chat_id), out_text, parse_mode="HTML")
+        bot.send_message(chat_id, "Выполнено.")
+    except Exception as exc:
+        bot.send_message(chat_id, "Exception: {}\n{}".format(exc, traceback.format_exc()))
 
 
 @bot.message_handler(commands=["info", ])
@@ -602,18 +678,22 @@ def bot_all_messages(msg: Message):
     else:
         log.debug("user known")
     chat_id = msg.chat.id
+    chat_title = chat.title if chat.title is not None else chat.username
     if chat_id not in chat_states:
         log.debug("chat not known")
-        chat_states[chat_id] = chat_state.ChatState(chat_state.NONE)
+        chat_states[chat_id] = chat_state.ChatState(chat_state.NONE, chat_title)
     else:
         log.debug("chat known")
+        if not hasattr(chat_states[chat_id], "title"):
+            chat_states[chat_id].title = chat_title
     if config.LOG_INPUT:
         global messages_log_files
         if chat_id not in messages_log_files:
-            base_name = "chat_{}.log".format(chat.title if chat.title is not None else chat.username)
+            base_name = "chat_{}.log".format(chat_title)
             log_path = os.path.join(logs_path, base_name)
             messages_log_files[chat_id] \
                 = open(log_path, mode="at", buffering=1, encoding="utf-8", errors="backslashreplace")
+            messages_log_files[chat_id].write("with id: {}\n".format(chat_id))
         file_instance: io.StringIO = messages_log_files[chat_id]
         dtime = datetime.fromtimestamp(msg.date).strftime('%Y-%m-%d %H:%M:%S')
         if msg.text is not None:

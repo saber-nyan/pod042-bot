@@ -25,6 +25,7 @@ BOT_HOME = os.getenv('BOT_HOME', os.path.join(Path.home(), '.pod042-bot'))
 VK_LOGIN = os.getenv('VK_LOGIN', None)  # Угу, ваш (или фейка) логин ВКонтакте. Лучше телефон.
 VK_PASSWORD = os.getenv('VK_PASSWORD', None)  # Да, по другому никак. Проверено.
 WHATANIME_TOKEN = os.getenv('WHATANIME_TOKEN', None)  # Токен whatanime.ga
+ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', None)  # Юзернейм админа. Ему будут доступны команды управления ботом.
 
 # Адрес сервера, откуда берутся звуки для inline.
 # Сервер должен быть доступен извне!
