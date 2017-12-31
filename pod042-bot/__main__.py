@@ -25,17 +25,15 @@ from vk_api import vk_api, VkTools
 from vk_api.vk_api import VkApiMethod
 
 try:
-    from . import chat_state
     from . import config
-    from . import vk_group
-    from . import whatanime_ga
-    from .inline_sound import InlineSound
+    from .tgdata import vk_group, chat_state
+    from .external_api import whatanime_ga
+    from .tgdata.inline_sound import InlineSound
 except ImportError:
-    import chat_state
+    from tgdata import chat_state, vk_group
+    from tgdata.inline_sound import InlineSound
+    from external_api import whatanime_ga
     import config
-    import vk_group
-    import whatanime_ga
-    from inline_sound import InlineSound
 
 users_dict: typing.Dict[str, int] = {}
 """

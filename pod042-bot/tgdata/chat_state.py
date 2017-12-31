@@ -8,7 +8,7 @@ import typing
 try:
     from .vk_group import VkGroup
 except ImportError:
-    from vk_group import VkGroup
+    from tgdata.vk_group import VkGroup
 
 NONE = "Нет"
 WHATANIME = "whatanime.ga: поиск аниме"
