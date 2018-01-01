@@ -167,7 +167,7 @@ class WhatAnimeResult:
 
 class WhatAnimeClient:
     """
-    Клиент для http://whatanime.ga.
+    Клиент для https://whatanime.ga.
 
     Документация: https://soruly.github.io/whatanime.ga
     """
@@ -231,7 +231,7 @@ class WhatAnimeClient:
         """
         Ищет аниме по скриншоту. Файлы, что в BASE64 > 1MB, не поддерживаются!
 
-        :param picture_path: путь до картинки на диске
+        :param str picture_path: путь до картинки на диске
         :return: ответ сервера
         :rtype: WhatAnimeResult
         """

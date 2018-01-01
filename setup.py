@@ -22,6 +22,7 @@ setup(
         'pyTelegramBotAPI',
         'vk_api',
         'Pillow',
+        'beautifulsoup4',
     ],
     packages=find_packages(),
     include_package_data=True,
