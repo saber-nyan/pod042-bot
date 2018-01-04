@@ -344,7 +344,7 @@ def bot_process_iqdb(msg: Message):
                               ready + "Превью\n",
                               chat_id, status_msg.message_id)
         out_msg = "{type} ({sim}%): {rat}, {res}\n" \
-                  "Preview: {prev}\n\n" \
+                  "Preview: {prev}\n" \
                   "Sauce: {sauce}".format(
             type=result.match_type,
             sim=result.similarity,
@@ -354,7 +354,7 @@ def bot_process_iqdb(msg: Message):
             sauce=result.source_link
         )
         if result.tags is not None:
-            out_msg += "\nTags: "
+            out_msg += "\n\nTags: "
             for tag in result.tags:
                 out_msg += "<code>{}</code> ".format(tag)
         bot.send_message(chat_id, out_msg, parse_mode="HTML")
