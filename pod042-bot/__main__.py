@@ -10,6 +10,7 @@ import pickle
 import random
 import re
 import signal
+import string
 import sys
 import traceback
 import typing
@@ -19,8 +20,8 @@ import pkg_resources
 import requests
 import telebot
 from telebot import util
-from telebot.types import Message, User, Chat, PhotoSize, File, Document, ForceReply, InlineQuery, \
-    InlineQueryResultVoice
+from telebot.types import Message, User, Chat, PhotoSize, File, Document, \
+    ForceReply, InlineQuery, InlineQueryResultVoice
 from vk_api import vk_api, VkTools
 from vk_api.vk_api import VkApiMethod
 
@@ -28,11 +29,12 @@ try:
     from . import config
     from .tgdata import vk_group, chat_state
     from .external_api import whatanime_ga
+    from .external_api import iqdb_org
     from .tgdata.inline_sound import InlineSound
 except ImportError:
     from tgdata import chat_state, vk_group
     from tgdata.inline_sound import InlineSound
-    from external_api import whatanime_ga
+    from external_api import whatanime_ga, iqdb_org
     import config
 
 users_dict: typing.Dict[str, int] = {}
@@ -67,6 +69,8 @@ saves_path = os.path.join(config.BOT_HOME, "saves")
 tmp_path = os.path.join(config.BOT_HOME, "tmp")
 
 bot = telebot.TeleBot(config.BOT_TOKEN, num_threads=config.NUM_THREADS)
+iqdb: iqdb_org.IqdbClient = None
+iqdb_disabled = True
 whatanime: whatanime_ga.WhatAnimeClient = None
 whatanime_disabled = True
 vk: VkApiMethod = None
@@ -81,6 +85,112 @@ HTML_ANEK_REGEX = re.compile(r"<meta name=\"description\" content=\"(.*?)\">", r
 
 EXIT_SUCCESS = 0
 EXIT_UNKNOWN = -256
+
+# status emoji
+ready = "\u2705 "
+pending = "\u2747\ufe0f "
+not_ready = "\u274e "
+error = "\u203c\ufe0f "
+
+
+def download_and_report_progress(msg: Message, max_file_size: int
+                                 ) -> typing.Optional[typing.Tuple[str, Message]]:
+    """
+    Загружает файл и сообщает об этом в указанном чате.
+
+    :param Message msg: сообщение-источник
+    :param int max_file_size: максимальный размер для загрузки
+    :return: путь до скачанного файла И
+    :rtype: typing.Optional[typing.Tuple[str, Message]]
+    """
+    chat_id = msg.chat.id
+    msg_text = msg.text
+
+    if (msg.photo is None and msg.document is None) and not msg_text.startswith(("http://", "https://",)):
+        log.debug("not link, skipping: {}".format(msg.text))
+        return None
+
+    # Prepare URL
+    status_msg = bot.send_message(chat_id, pending + "Подготовка ссылки\n" +
+                                  not_ready + "Загрузка\n" +
+                                  not_ready + "Поиск\n" +
+                                  not_ready + "Результат\n" +
+                                  not_ready + "Превью\n")
+    if msg.photo is not None:  # Фото, .jpg
+        photos: typing.List[PhotoSize] = msg.photo
+        file: File = bot.get_file(photos[-1].file_id)  # Biggest resolution
+        download_url = "https://api.telegram.org/file/bot{}/{}".format(config.BOT_TOKEN, file.file_path)
+        log.debug("pic")
+    elif msg.document is not None:  # Документ, any!
+        document: Document = msg.document
+        file: File = bot.get_file(document.file_id)
+        download_url = "https://api.telegram.org/file/bot{}/{}".format(config.BOT_TOKEN, file.file_path)
+        log.debug("doc")
+    else:  # Ссылка, any!
+        download_url = msg_text
+        log.debug("text")
+    if download_url is None:
+        bot.edit_message_text(error + "Подготовка ссылки\n" +
+                              not_ready + "Загрузка\n" +
+                              not_ready + "Поиск\n" +
+                              not_ready + "Результат\n" +
+                              not_ready + "Превью\n",
+                              chat_id, status_msg.message_id)
+        bot.send_message(chat_id, "Не смог получить ссылку для загрузки. Жду еще одного сообщения или /abort!")
+        return None
+    log.debug("ready to download input, url: {}".format(download_url))
+
+    # Download!
+    try:
+        status_msg = bot.edit_message_text(ready + "Подготовка ссылки\n" +
+                                           pending + "Загрузка\n" +
+                                           not_ready + "Поиск\n" +
+                                           not_ready + "Результат\n" +
+                                           not_ready + "Превью\n",
+                                           chat_id, status_msg.message_id)
+        response = requests.get(download_url, timeout=4, stream=True)
+        data = response.raw.read(max_file_size + 1, decode_content=True)
+        if len(data) > max_file_size:  # 2MB
+            response.close()
+            bot.edit_message_text(ready + "Подготовка ссылки\n" +
+                                  error + "Загрузка\n" +
+                                  not_ready + "Поиск\n" +
+                                  not_ready + "Результат\n" +
+                                  not_ready + "Превью\n",
+                                  chat_id, status_msg.message_id)
+            bot.send_message(chat_id, "Объем данных превышает 2МБ, отменено. Жду еще одного сообщения или /abort!")
+            return None
+        # noinspection PyUnusedLocal
+        rand = "".join(random.choice(string.ascii_letters + string.digits) for x in range(
+            random.randint(16, 32)))
+        search_file_path = os.path.join(tmp_path, "search_{}_{}".format(msg.message_id, rand))
+        with open(search_file_path, mode="wb") as file:
+            file.write(data)
+    except Exception as exc:
+        bot.edit_message_text(ready + "Подготовка ссылки\n" +
+                              error + "Загрузка\n" +
+                              not_ready + "Поиск\n" +
+                              not_ready + "Результат\n" +
+                              not_ready + "Превью\n",
+                              chat_id, status_msg.message_id)
+        bot.send_message(chat_id, "Ошибка при загрузке. Жду еще одного сообщения или /abort!\n"
+                                  "Подробнее: {}".format(exc))
+        log.debug("{}".format(traceback.format_exc()))
+        # noinspection PyBroadException
+        try:
+            # noinspection PyUnboundLocalVariable
+            os.remove(os.path.realpath(search_file_path))
+        except:
+            pass
+        return None
+
+    status_msg = bot.edit_message_text(ready + "Подготовка ссылки\n" +
+                                       ready + "Загрузка\n" +
+                                       pending + "Поиск\n" +
+                                       not_ready + "Результат\n" +
+                                       not_ready + "Превью\n",
+                                       chat_id, status_msg.message_id)
+    return search_file_path, status_msg
 
 
 def chat_in_state(chat_msg: Message, state_name: str) -> bool:
@@ -211,6 +321,62 @@ def bot_cmd_info(msg: Message):
     # TODO
 
 
+@bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.IQDB),
+                     content_types=["text", "document", "photo"])
+def bot_process_iqdb(msg: Message):
+    """
+    Ищет арт на бурах с помощью `iqdb.org`.
+
+    :param Message msg: сообщение
+    """
+    bot_all_messages(msg)
+    chat_id = msg.chat.id
+
+    search_file_path, status_msg = download_and_report_progress(msg, iqdb_org.MAX_SIZE)
+
+    try:
+        results: typing.List[iqdb_org.IqdbResult] = iqdb.search(search_file_path)
+        result = results[0]
+        bot.edit_message_text(ready + "Подготовка ссылки\n" +
+                              ready + "Загрузка\n" +
+                              ready + "Поиск\n" +
+                              ready + "Результат\n" +
+                              ready + "Превью\n",
+                              chat_id, status_msg.message_id)
+        out_msg = "{type} ({sim}%): {rat}, {res}\n" \
+                  "Preview: {prev}\n\n" \
+                  "Sauce: {sauce}".format(
+            type=result.match_type,
+            sim=result.similarity,
+            rat=result.rating,
+            res=result.resolution,
+            prev=result.preview_link,
+            sauce=result.source_link
+        )
+        if result.tags is not None:
+            out_msg += "\nTags: "
+            for tag in result.tags:
+                out_msg += "<code>{}</code> ".format(tag)
+        bot.send_message(chat_id, out_msg, parse_mode="HTML")
+        chat_states[chat_id].state_name = chat_state.NONE
+    except Exception as exc:
+        bot.edit_message_text(ready + "Подготовка ссылки\n" +
+                              ready + "Загрузка\n" +
+                              error + "Поиск\n" +
+                              not_ready + "Результат\n" +
+                              not_ready + "Превью\n",
+                              chat_id, status_msg.message_id)
+        bot.send_message(chat_id, "Ошибка при поиске. Жду еще одного сообщения или /abort!\n"
+                                  "Подробнее: {}".format(exc))
+        log.debug("{}".format(traceback.format_exc()))
+
+    # noinspection PyBroadException
+    try:
+        os.remove(os.path.realpath(search_file_path))
+    except:
+        pass
+
+
 @bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.WHATANIME),
                      content_types=["text", "document", "photo"])
 def bot_process_whatanime(msg: Message):
@@ -221,94 +387,9 @@ def bot_process_whatanime(msg: Message):
     """
     bot_all_messages(msg)
     chat_id = msg.chat.id
-    msg_text = msg.text
 
-    if (msg.photo is None and msg.document is None) and not msg_text.startswith(("http://", "https://",)):
-        log.debug("not link, skipping: {}".format(msg.text))
-        return
+    search_file_path, status_msg = download_and_report_progress(msg, 2097152)
 
-    ready = "\u2705 "
-    pending = "\u2747\ufe0f "
-    not_ready = "\u274e "
-    error = "\u203c\ufe0f "
-
-    # Prepare URL
-    status_msg = bot.send_message(chat_id, pending + "Подготовка ссылки\n" +
-                                  not_ready + "Загрузка\n" +
-                                  not_ready + "Поиск\n" +
-                                  not_ready + "Результат\n" +
-                                  not_ready + "Превью\n")
-    if msg.photo is not None:  # Фото, .jpg
-        photos: typing.List[PhotoSize] = msg.photo
-        file: File = bot.get_file(photos[-1].file_id)  # Biggest resolution
-        download_url = "https://api.telegram.org/file/bot{}/{}".format(config.BOT_TOKEN, file.file_path)
-        log.debug("pic")
-    elif msg.document is not None:  # Документ, any!
-        document: Document = msg.document
-        file: File = bot.get_file(document.file_id)
-        download_url = "https://api.telegram.org/file/bot{}/{}".format(config.BOT_TOKEN, file.file_path)
-        log.debug("doc")
-    else:  # Ссылка, any!
-        download_url = msg_text
-        log.debug("text")
-    if download_url is None:
-        bot.edit_message_text(error + "Подготовка ссылки\n" +
-                              not_ready + "Загрузка\n" +
-                              not_ready + "Поиск\n" +
-                              not_ready + "Результат\n" +
-                              not_ready + "Превью\n",
-                              chat_id, status_msg.message_id)
-        bot.send_message(chat_id, "Не смог получить ссылку для загрузки. Жду еще одного сообщения или /abort!")
-        return
-    log.debug("ready to download input, url: {}".format(download_url))
-
-    # Download!
-    try:
-        status_msg = bot.edit_message_text(ready + "Подготовка ссылки\n" +
-                                           pending + "Загрузка\n" +
-                                           not_ready + "Поиск\n" +
-                                           not_ready + "Результат\n" +
-                                           not_ready + "Превью\n",
-                                           chat_id, status_msg.message_id)
-        response = requests.get(download_url, timeout=5, stream=True)
-        data = response.raw.read(2097152 + 1, decode_content=True)
-        if len(data) > 2097152:  # 2MB
-            response.close()
-            bot.edit_message_text(ready + "Подготовка ссылки\n" +
-                                  error + "Загрузка\n" +
-                                  not_ready + "Поиск\n" +
-                                  not_ready + "Результат\n" +
-                                  not_ready + "Превью\n",
-                                  chat_id, status_msg.message_id)
-            bot.send_message(chat_id, "Объем данных превышает 2МБ, отменено. Жду еще одного сообщения или /abort!")
-            return
-        search_file_path = os.path.join(tmp_path, "search_{}".format(msg.message_id))
-        with open(search_file_path, mode="wb") as file:
-            file.write(data)
-    except Exception as exc:
-        bot.edit_message_text(ready + "Подготовка ссылки\n" +
-                              error + "Загрузка\n" +
-                              not_ready + "Поиск\n" +
-                              not_ready + "Результат\n" +
-                              not_ready + "Превью\n",
-                              chat_id, status_msg.message_id)
-        bot.send_message(chat_id, "Ошибка при загрузке. Жду еще одного сообщения или /abort!\n"
-                                  "Подробнее: {}".format(exc))
-        log.debug("{}".format(traceback.format_exc()))
-        # noinspection PyBroadException
-        try:
-            # noinspection PyUnboundLocalVariable
-            os.remove(os.path.realpath(search_file_path))
-        except:
-            pass
-        return
-
-    status_msg = bot.edit_message_text(ready + "Подготовка ссылки\n" +
-                                       ready + "Загрузка\n" +
-                                       pending + "Поиск\n" +
-                                       not_ready + "Результат\n" +
-                                       not_ready + "Превью\n",
-                                       chat_id, status_msg.message_id)
     # Search!
     try:
         results: typing.List[whatanime_ga.WhatAnimeResult] = whatanime.search(search_file_path)
@@ -563,7 +644,7 @@ def bot_cmd_vk_pic(msg: Message):
 @bot.message_handler(commands=["whatanime", ])
 def bot_cmd_whatanime(msg: Message):
     """
-    Входит в режим поиска аниме по скриншоту (спасибо whatanime.ga за API)
+    Входит в режим поиска аниме по скриншоту (спасибо whatanime.ga за API).
 
     :param Message msg: сообщение
     """
@@ -573,8 +654,26 @@ def bot_cmd_whatanime(msg: Message):
         bot.send_message(chat_id, "Модуль whatanime.ga отключен.")
         return
     chat_states[chat_id].state_name = chat_state.WHATANIME
-    chat_states[chat_id].message_id_to_reply = msg.message_id
     out_msg = "Вошел в режим <b>whatanime.ga: поиск аниме</b>!\n" \
+              "Напиши /abort для выхода.\n\n" \
+              "Для поиска отправь картинку или <b>прямую</b> ссылку (должна начинаться с http/https)."
+    bot.send_message(chat_id, out_msg, parse_mode="HTML")
+
+
+@bot.message_handler(commands=["iqdb", ])
+def bot_cmd_iqdb(msg: Message):
+    """
+    Входит в режим поиска соуса арта (не спасибо iqdb.org за отсутствие API).
+
+    :param Message msg: сообщение
+    """
+    bot_all_messages(msg)
+    chat_id = msg.chat.id
+    if iqdb_disabled:
+        bot.send_message(chat_id, "Модуль iqdb.org отключен.")
+        return
+    chat_states[chat_id].state_name = chat_state.IQDB
+    out_msg = "Вошел в режим <b>iqdb.org: multi-service image search</b>!\n" \
               "Напиши /abort для выхода.\n\n" \
               "Для поиска отправь картинку или <b>прямую</b> ссылку (должна начинаться с http/https)."
     bot.send_message(chat_id, out_msg, parse_mode="HTML")
@@ -850,6 +949,18 @@ def main() -> int:
         whatanime_disabled = False
     except Exception as exc:
         log.error("...failure! Reason: {}, whatanime disabled".format(exc))
+        log.debug("With trace:\n{}".format(traceback.format_exc()))
+
+    # Init iqdb.org API
+    try:
+        log.info("iqdb init...")
+        global iqdb
+        iqdb = iqdb_org.IqdbClient()
+        log.info("...success! Boorus:\n{}".format(iqdb.boorus_status))
+        global iqdb_disabled
+        iqdb_disabled = False
+    except Exception as exc:
+        log.error("...failure! Reason: {}, iqdb disabled".format(exc))
         log.debug("With trace:\n{}".format(traceback.format_exc()))
 
     # Load info from disk

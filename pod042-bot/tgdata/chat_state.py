@@ -12,6 +12,7 @@ except ImportError:
 
 NONE = "Нет"
 WHATANIME = "whatanime.ga: поиск аниме"
+IQDB = "iqdb.org: multi-service image search"
 CONFIGURE_VK_GROUPS = "Конфигурация модуля ВКонтакте"
 CONFIGURE_VK_GROUPS_ADD = "Добавление групп ВК для постинга картинок"
 
