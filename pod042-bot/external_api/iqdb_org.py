@@ -2,20 +2,22 @@
 """
 Модуль взаимодействия с https://iqdb.org
 """
+import re
 from enum import Enum
 from io import BytesIO
-from typing import List
+from typing import List, Optional
 
 import requests
 from PIL import Image
 # noinspection PyProtectedMember
 from bs4 import BeautifulSoup, Tag
 
+FAIL_COUNT_REGEX = re.compile(r".*?(\d+).*")
+FAIL_REASON_REGEX = re.compile(r".*Last reason: (.*)\)", re.DOTALL)
+
 ENDPOINT: str = "https://iqdb.org"
 MAX_SIDE_RESOLUTION: int = 7500
 MAX_SIZE: int = 8388608  # in bytes
-
-
 # SUPPORTED_FORMATS: List = ["PNG", "JPEG", "GIF", ]
 
 
@@ -81,7 +83,7 @@ class IqdbResult:
     Степень совпадения картинки.
     """
 
-    tags: List[str] = None
+    tags: Optional[List[str]] = None
     """
     Тэги. Их почему-то нет у *Best match* результата.
     """
@@ -112,6 +114,65 @@ class IqdbResult:
         return self.__str()
 
 
+class IqdbBooru:
+    """
+    Бура для поиска и ее статус обновления.
+    """
+
+    name: str = None
+    """
+    Название буры.
+    """
+
+    post_update: str = None
+    """
+    Время последнего обновления постов.
+    """
+
+    tag_update: str = None
+    """
+    Время последнего обновления тегов.
+    """
+
+    latest_post: int = None
+    """
+    Номер последнего поста.
+    """
+
+    update_fail_count: Optional[int] = None
+    """
+    Количество ошибок обновления.
+    """
+
+    update_fail_reason: Optional[str] = None
+    """
+    Причина последней ошибки обновления.
+    """
+
+    def __init__(self, name, post_update, tag_update, latest_post,
+                 update_fail_count, update_fail_reason):
+        self.name = name
+        self.post_update = post_update
+        self.tag_update = tag_update
+        self.latest_post = latest_post
+        self.update_fail_count = update_fail_count
+        self.update_fail_reason = update_fail_reason
+
+    def __str(self):
+        return "{name}: p {post_u}, {post_l}; t {tag}".format(
+            name=self.name,
+            post_u=self.post_update,
+            post_l=self.latest_post,
+            tag=self.tag_update
+        )
+
+    def __repr__(self):
+        return self.__str()
+
+    def __str__(self):
+        return self.__str()
+
+
 class IqdbClient:
     """
     Клиент для https://iqdb.org.
@@ -126,9 +187,57 @@ class IqdbClient:
     *Searched 14,379,355 images in 3.528 seconds.*
     """
 
+    boorus_status: List[IqdbBooru] = None
+    """
+    Статус обновления бур.
+    """
+
     def __init__(self):
-        # TODO: Some init?
-        pass
+        self.get_status()
+
+    def get_status(self):
+        """
+        Получает статус обновления бур.
+        """
+        response = requests.get(ENDPOINT, params={
+            "status": "1"
+        })
+        response.encoding = 'utf-8'
+        soup = BeautifulSoup(response.text, "html.parser")
+        table_body: Tag = soup.find("table", attrs={
+            "style": "white-space: nowrap"
+        }).find("tbody")
+
+        result = []
+        for entry in table_body.find_all('tr'):
+            entry_strings = entry.find_all('td')
+            r_name = entry_strings[0].text
+            r_post_update = entry_strings[1].text
+            r_tag_update = entry_strings[2].text
+            r_latest_post = int(entry_strings[3].text)
+            update_failure_string: str = entry_strings[4].text
+            r_update_fail_count = None
+            r_update_fail_reason = None
+            if len(update_failure_string) > 0:
+                # noinspection PyBroadException
+                try:
+                    r_update_fail_count = int(
+                        FAIL_COUNT_REGEX.search(update_failure_string).group(1)
+                    )
+                    r_update_fail_reason = FAIL_REASON_REGEX.search(update_failure_string) \
+                        .group(1).replace('\n', '')
+                except:
+                    pass
+            booru_instance = IqdbBooru(
+                name=r_name,
+                post_update=r_post_update,
+                tag_update=r_tag_update,
+                latest_post=r_latest_post,
+                update_fail_count=r_update_fail_count,
+                update_fail_reason=r_update_fail_reason
+            )
+            result.append(booru_instance)
+        self.boorus_status = result
 
     def search(self, picture_path: str) -> List[IqdbResult]:
         """
@@ -180,9 +289,12 @@ class IqdbClient:
         for result_box in results_boxes.find_all('div'):  # Main matches
             info_strings: List[Tag] = result_box.find('table') \
                 .find_all('tr')
-            if info_strings[0].find('th').text == MatchTypeEnum.SKIP.value:
-                continue
-            r_match_type = info_strings[0].find('th').text
+            match_type = info_strings[0].find('th').text
+            if match_type == MatchTypeEnum.SKIP.value:
+                continue  # Your image
+            if match_type == MatchTypeEnum.NO.value:
+                continue  # No relevant matches
+            r_match_type = match_type
             links: Tag = info_strings[1].find('td')
             source_link: str = links.find('a')['href']
             r_source_link = 'http:' + source_link if source_link.startswith('//') else source_link
