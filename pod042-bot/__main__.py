@@ -332,7 +332,10 @@ def bot_process_iqdb(msg: Message):
     bot_all_messages(msg)
     chat_id = msg.chat.id
 
-    search_file_path, status_msg = download_and_report_progress(msg, iqdb_org.MAX_SIZE)
+    try:
+        search_file_path, status_msg = download_and_report_progress(msg, iqdb_org.MAX_SIZE)
+    except TypeError:
+        return
 
     try:
         results: typing.List[iqdb_org.IqdbResult] = iqdb.search(search_file_path)
@@ -388,7 +391,10 @@ def bot_process_whatanime(msg: Message):
     bot_all_messages(msg)
     chat_id = msg.chat.id
 
-    search_file_path, status_msg = download_and_report_progress(msg, 2097152)
+    try:
+        search_file_path, status_msg = download_and_report_progress(msg, 2097152)
+    except TypeError:
+        return
 
     # Search!
     try:
