@@ -13,7 +13,7 @@ import requests
 from PIL import Image
 
 try:
-    from . import config
+    from .. import config
 except ImportError:
     import config
 
