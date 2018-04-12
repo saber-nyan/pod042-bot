@@ -64,8 +64,6 @@ pod042-bot
 *********
 Установка
 *********
-Требуется `git-lfs <https://github.com/git-lfs/git-lfs/wiki/Installation>`_!
-""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 .. code-block:: bash
 
@@ -74,7 +72,7 @@ pod042-bot
     $ source ./venv/bin/activate
 
     # Клонируем репозиторий, устанавливаем в virtualenv
-    $ git lfs clone https://github.com/saber-nyan/pod042-bot.git
+    $ git clone https://github.com/saber-nyan/pod042-bot.git
     $ cd pod042-bot
     $ pip install . # Или python ./setup.py install
 
