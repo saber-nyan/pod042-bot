@@ -107,7 +107,7 @@ def download_and_report_progress(msg: Message, max_file_size: int
     msg_text = msg.text
 
     if (msg.photo is None and msg.document is None) and not msg_text.startswith(("http://", "https://",)):
-        log.debug("not link, skipping: {}".format(msg.text))
+        log.debug(f"not link, skipping: {msg.text}")
         return None
 
     # Prepare URL
@@ -119,12 +119,12 @@ def download_and_report_progress(msg: Message, max_file_size: int
     if msg.photo is not None:  # Фото, .jpg
         photos: typing.List[PhotoSize] = msg.photo
         file: File = bot.get_file(photos[-1].file_id)  # Biggest resolution
-        download_url = "https://api.telegram.org/file/bot{}/{}".format(config.BOT_TOKEN, file.file_path)
+        download_url = f"https://api.telegram.org/file/bot{config.BOT_TOKEN}/{file.file_path}"
         log.debug("pic")
     elif msg.document is not None:  # Документ, any!
         document: Document = msg.document
         file: File = bot.get_file(document.file_id)
-        download_url = "https://api.telegram.org/file/bot{}/{}".format(config.BOT_TOKEN, file.file_path)
+        download_url = f"https://api.telegram.org/file/bot{config.BOT_TOKEN}/{file.file_path}"
         log.debug("doc")
     else:  # Ссылка, any!
         download_url = msg_text
@@ -138,7 +138,7 @@ def download_and_report_progress(msg: Message, max_file_size: int
                               chat_id, status_msg.message_id)
         bot.send_message(chat_id, "Не смог получить ссылку для загрузки. Жду еще одного сообщения или /abort!")
         return None
-    log.debug("ready to download input, url: {}".format(download_url))
+    log.debug(f"ready to download input, url: {download_url}")
 
     # Download!
     try:
@@ -163,7 +163,7 @@ def download_and_report_progress(msg: Message, max_file_size: int
         # noinspection PyUnusedLocal
         rand = "".join(random.choice(string.ascii_letters + string.digits) for x in range(
             random.randint(16, 32)))
-        search_file_path = os.path.join(tmp_path, "search_{}_{}".format(msg.message_id, rand))
+        search_file_path = os.path.join(tmp_path, f"search_{msg.message_id}_{rand}")
         with open(search_file_path, mode="wb") as file:
             file.write(data)
     except Exception as exc:
@@ -220,7 +220,7 @@ def is_admin(chat_msg: Message) -> bool:
     if config.ADMIN_USERNAME is None:
         return False
     sender: User = chat_msg.from_user
-    log.debug("{} admin check...".format(sender.username))
+    log.debug(f"{sender.username} admin check...")
     return True if sender.username == config.ADMIN_USERNAME else False
 
 
@@ -256,12 +256,12 @@ def bot_cmd_eval(msg: Message):
     cmd: str = msg.text.split(' ', 1)[1]
     try:
         cmd = "cmd_result = " + cmd
-        log.debug("compiling {}...".format(cmd))
+        log.debug(f"compiling {cmd}...")
         cmd_compiled = compile(cmd, "<string>", "exec")
         exec(cmd_compiled, globals(), locals())
         result = locals().get("cmd_result")
     except Exception as exc:
-        result = "Exception: {}\n{}".format(exc, traceback.format_exc())
+        result = f"Exception: {exc}\n{traceback.format_exc()}"
     for splitted in util.split_string(str(result), 2000):
         bot.send_message(chat_id, splitted)
 
@@ -278,12 +278,11 @@ def bot_cmd_list_chats(msg: Message):
     chat_id = msg.chat.id
     result = ""
     for other_chat_id, other_chat_state in chat_states.items():
-        if hasattr(other_chat_state, "title"):
-            result += "<code>{}</code>: {}, state <code>{}</code>\n" \
-                .format(other_chat_id, other_chat_state.title, other_chat_state.state_name)
+        if hasattr(other_chat_state, "title"):  # TODO: remove compatibility condition?
+            result += f"<code>{other_chat_id}</code>: {other_chat_state.title}, " \
+                      f"state <code>{other_chat_state.state_name}</code>\n"
         else:
-            result += "<code>{}</code>: state <code>{}</code>\n" \
-                .format(other_chat_id, other_chat_state.state_name)
+            result += f"<code>{other_chat_id}</code>: state <code>{other_chat_state.state_name}</code>\n"
     bot.send_message(chat_id, result, parse_mode="HTML")
 
 
@@ -346,20 +345,13 @@ def bot_process_iqdb(msg: Message):
                               ready + "Результат\n" +
                               ready + "Превью\n",
                               chat_id, status_msg.message_id)
-        out_msg = "{type} ({sim}%): {rat}, {res}\n" \
-                  "Preview: {prev}\n" \
-                  "Sauce: {sauce}".format(
-            type=result.match_type,
-            sim=result.similarity,
-            rat=result.rating,
-            res=result.resolution,
-            prev=result.preview_link,
-            sauce=result.source_link
-        )
+        out_msg = f"{result.match_type} ({result.similarity}%): {result.rating}, {result.resolution}\n" \
+                  f"Preview: {result.preview_link}\n" \
+                  f"Sauce: {result.source_link}"
         if result.tags is not None:
             out_msg += "\n\nTags: "
             for tag in result.tags:
-                out_msg += "<code>{}</code> ".format(tag)
+                out_msg += f"<code>{tag}</code> "
         bot.send_message(chat_id, out_msg, parse_mode="HTML")
         chat_states[chat_id].state_name = chat_state.NONE
     except Exception as exc:
@@ -369,8 +361,8 @@ def bot_process_iqdb(msg: Message):
                               not_ready + "Результат\n" +
                               not_ready + "Превью\n",
                               chat_id, status_msg.message_id)
-        bot.send_message(chat_id, "Ошибка при поиске. Жду еще одного сообщения или /abort!\n"
-                                  "Подробнее: {}".format(exc))
+        bot.send_message(chat_id, f"Ошибка при поиске. Жду еще одного сообщения или /abort!\n"
+                                  f"Подробнее: {exc}")
         log.debug("{}".format(traceback.format_exc()))
 
     # noinspection PyBroadException
@@ -409,7 +401,7 @@ def bot_process_whatanime(msg: Message):
         # самым подходящим.
         result = results[0]
         result.load_thumbnail()
-        bot.send_message(chat_id, "<code>{}</code>".format(result.title_romaji), parse_mode="HTML")
+        bot.send_message(chat_id, f"<code>{result.title_romaji}</code>", parse_mode="HTML")
         status_msg = bot.edit_message_text(ready + "Подготовка ссылки\n" +
                                            ready + "Загрузка\n" +
                                            ready + "Поиск\n" +
@@ -486,23 +478,23 @@ def bot_process_configuration_vk(msg: Message):
         dead_links: list = []
         vk_groups = this_chat.vk_groups
         for line in text.splitlines():
-            log.debug("line {}".format(line))
+            log.debug(f"line {line}")
             if not VK_GROUP_REGEX.match(line):
                 dead_links.append(line)
                 break
             group_name: str = re.sub(VK_GROUP_REGEX, r"\1", line)
-            log.debug("got group \"{}\"...".format(group_name))
+            log.debug(f"got group \"{group_name}\"...")
             try:
                 response = vk.groups.getById(group_id=group_name, fields="id", version=VK_VER)
             except (vk_api.ApiError, vk_api.ApiHttpError) as err:
-                log.info("...but request failed ({})".format(err))
+                log.info(f"...but request failed ({err})")
                 dead_links.append(line)
                 break
-            log.debug("...and vk response:\n"
-                      "{}".format(response))
+            log.debug(f"...and vk response:\n"
+                      f"{response}")
             group_dict: dict = response[0]
             group = vk_group.VkGroup(group_dict["id"], group_dict["name"], group_dict["screen_name"])
-            log.info("finally, our group: {}".format(group))
+            log.info(f"finally, our group: {group}")
             vk_groups.append(group)
 
         success_grps = ""
@@ -572,12 +564,12 @@ def bot_cmd_configuration_vk(msg: Message):
     for entry in grps:
         grps_str += entry.__str__() + "\n"
 
-    out_msg = "Вошел в режим <b>Конфигурация модуля ВКонтакте</b>!\n" \
-              "/add — добавление групп\n" \
-              "/clear — очистка списка\n" \
-              "/abort — отмена\n\n" \
-              "Сейчас в списке:\n" \
-              "<code>{}</code>\n".format(grps_str)
+    out_msg = f"Вошел в режим <b>Конфигурация модуля ВКонтакте</b>!\n" \
+              f"/add — добавление групп\n" \
+              f"/clear — очистка списка\n" \
+              f"/abort — отмена\n\n" \
+              f"Сейчас в списке:\n" \
+              f"<code>{grps_str}</code>\n"
     bot.send_message(chat_id, out_msg, parse_mode="HTML")
 
 
@@ -598,7 +590,7 @@ def bot_cmd_vk_pic(msg: Message):
         return
     bot.send_chat_action(chat_id, "upload_photo")
     chosen_group: vk_group.VkGroup = random.choice(chat_states[chat_id].vk_groups)
-    log.debug("selected {} as source".format(chosen_group))
+    log.debug(f"selected {chosen_group} as source")
     response = vk_tools.get_all("wall.get", max_count=config.VK_ITEMS_PER_REQUEST, values={
         "domain": chosen_group.url_name,
         "fields": "attachments",
@@ -619,11 +611,11 @@ def bot_cmd_vk_pic(msg: Message):
             if "photo" in attach:
                 log.debug("found photo!")
                 photo_attach = attach["photo"]
-                log.debug("attach {}".format(photo_attach))
+                log.debug(f"attach {photo_attach}")
                 max_size = 75
                 for key in photo_attach:  # Аццкий костыль для выбора фото максимального разрешения
                     value = photo_attach[key]
-                    log.debug("<{}> -> {}".format(key, value))
+                    log.debug(f"<{key}> -> {value}")
                     if VK_PHOTO_ATTACH_REGEX.match(key):  # Ключ типа ``photo_<res>``, где 25 <= <res> <= inf
                         size = int(re.sub(VK_PHOTO_ATTACH_REGEX, r"\1", key))
                         if size > max_size:
@@ -643,8 +635,8 @@ def bot_cmd_vk_pic(msg: Message):
             else:
                 log.debug("not found!")
 
-    bot.send_message(chat_id, "{}\n"
-                              "Из https://vk.com/{}".format(max_size_url, chosen_group.url_name))
+    bot.send_message(chat_id, f"{max_size_url}\n"
+                              f"Из https://vk.com/{chosen_group.url_name}")
 
 
 @bot.message_handler(commands=["whatanime", ])
@@ -704,16 +696,16 @@ def bot_cmd_codfish(msg: Message):
     elif username == bot.get_me().username:  # Himself
         bot.send_video(chat_id, codfish_video, caption="Хорошенько шлепнул себя треской.")
     elif username in users_dict:  # Search in our users dict (user_id's are unique?)
-        raw = requests.get("https://api.telegram.org:443/bot{}/getChatMember?chat_id={}&user_id={}"
-                           .format(config.BOT_TOKEN, chat_id, users_dict[username]))  # Get user first name
-        response_json: tuple = raw.json()
-        # noinspection PyTypeChecker
-        user_first_name = response_json["result"]["user"]["first_name"]
-        log.debug("user first name is {}".format(user_first_name))
-        bot.send_video(chat_id, codfish_video, caption="Хорошенько шлепнул {} треской."
-                       .format(user_first_name))
+        # raw = requests.get("https://api.telegram.org:443/bot{}/getChatMember?chat_id={}&user_id={}"
+        #                    .format(config.BOT_TOKEN, chat_id, users_dict[username]))  # Get user first name
+        # response_json: tuple = raw.json()
+        # # noinspection PyTypeChecker
+        # user_first_name = response_json["result"]["user"]["first_name"]
+        user_first_name = bot.get_chat_member(chat_id, users_dict[username]).user.first_name
+        log.debug(f"user first name is {user_first_name}")
+        bot.send_video(chat_id, codfish_video, caption=f"Хорошенько шлепнул {user_first_name} треской.")
     else:  # Unknown
-        bot.send_message(chat_id, "Извини, пока не знаю <b>{}</b>...".format(username), parse_mode="HTML")
+        bot.send_message(chat_id, f"Извини, пока не знаю <b>{username}</b>...", parse_mode="HTML")
 
 
 @bot.message_handler(commands=["quote", ])
@@ -725,7 +717,7 @@ def bot_cmd_quote(msg: Message):
     """
     bot_all_messages(msg)
     quote = requests.get("https://tproger.ru/wp-content/plugins/citation-widget/getQuotes.php").text
-    bot.send_message(msg.chat.id, "<code>{}</code>".format(quote), parse_mode="HTML")
+    bot.send_message(msg.chat.id, f"<code>{quote}</code>", parse_mode="HTML")
 
 
 @bot.message_handler(commands=["anek", ])
@@ -743,7 +735,7 @@ def bot_cmd_anek(msg: Message):
     # Да, это парсинг регексами: сервер отдает данные без экранирования кавычек...
     result = HTML_ANEK_REGEX.search(html_text)
     out_msg = result.group(1) if result else "ERROR"
-    bot.send_message(msg.chat.id, "<code>{}</code>".format(out_msg), parse_mode="HTML")
+    bot.send_message(msg.chat.id, f"<code>{out_msg}</code>", parse_mode="HTML")
 
 
 @bot.inline_handler(lambda a: True)
@@ -756,7 +748,7 @@ def bot_inline_handler(inline_query: InlineQuery):
     if inline_disabled:
         log.info("tried inline, disabled")
         return
-    log.debug("got inline {}".format(inline_query.query))
+    log.debug(f"got inline {inline_query.query}")
 
     results = []
     id_counter = 0
@@ -853,7 +845,7 @@ def save_chat_states():
     global log
     if log is None:
         log = prepare_logger()
-    log.info("saving info to {}...".format(saves_path))
+    log.info(f"saving info to {saves_path}...")
     try:
         with open(states_save_path, "w+b") as states_file:
             pickle.dump(chat_states, states_file, pickle.HIGHEST_PROTOCOL)
