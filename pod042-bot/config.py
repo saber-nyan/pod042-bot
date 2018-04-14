@@ -5,11 +5,11 @@
 """
 import os
 import sys
+from pathlib import Path
+
 
 # FROM ENV: SETTINGS! ###########################
 # noinspection PyBroadException
-from pathlib import Path
-
 try:
     BOT_TOKEN = os.environ['BOT_TOKEN']  # Токен, полученный у @BotFather.
 except:

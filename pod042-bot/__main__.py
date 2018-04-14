@@ -12,6 +12,7 @@ import re
 import signal
 import string
 import sys
+import time
 import traceback
 import typing
 from datetime import datetime
@@ -175,7 +176,8 @@ def download_and_report_progress(msg: Message, max_file_size: int
                               chat_id, status_msg.message_id)
         bot.send_message(chat_id, "Ошибка при загрузке. Жду еще одного сообщения или /abort!\n"
                                   "Подробнее: {}".format(exc))
-        log.debug("{}".format(traceback.format_exc()))
+        # log.debug("{}".format(traceback.format_exc()))
+        log.info("dload fail:", exc_info=True)
         # noinspection PyBroadException
         try:
             # noinspection PyUnboundLocalVariable
@@ -240,6 +242,7 @@ def bot_cmd_abort(msg: Message):
         bot.send_message(chat_id, "Я ничем не занят!")
 
 
+# noinspection PyBroadException
 @bot.message_handler(commands=["eval", ], func=is_admin)
 def bot_cmd_eval(msg: Message):
     """
@@ -320,6 +323,7 @@ def bot_cmd_info(msg: Message):
     # TODO
 
 
+# noinspection PyBroadException
 @bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.IQDB),
                      content_types=["text", "document", "photo"])
 def bot_process_iqdb(msg: Message):
@@ -363,7 +367,7 @@ def bot_process_iqdb(msg: Message):
                               chat_id, status_msg.message_id)
         bot.send_message(chat_id, f"Ошибка при поиске. Жду еще одного сообщения или /abort!\n"
                                   f"Подробнее: {exc}")
-        log.debug("{}".format(traceback.format_exc()))
+        log.info("search fail:", exc_info=True)
 
     # noinspection PyBroadException
     try:
@@ -428,7 +432,7 @@ def bot_process_whatanime(msg: Message):
                               chat_id, status_msg.message_id)
         bot.send_message(chat_id, "Ошибка при поиске. Жду еще одного сообщения или /abort!\n"
                                   "Подробнее: {}".format(exc))
-        log.debug("{}".format(traceback.format_exc()))
+        log.info("search fail:", exc_info=True)
         os.remove(os.path.realpath(search_file_path))
         return
 
@@ -457,7 +461,7 @@ def bot_process_whatanime(msg: Message):
                                       "Осталось {} запросов за {} секунд."
                               .format(exc, whatanime.now_quota, whatanime.quota_expire),
                               chat_id, status_msg.message_id)
-        log.debug("{}".format(traceback.format_exc()))
+        log.debug("preview fail:", exc_info=True)
 
     os.remove(os.path.realpath(search_file_path))
     chat_states[chat_id].state_name = chat_state.NONE
@@ -836,6 +840,7 @@ def prepare_logger() -> logging.Logger:
     return l_log
 
 
+# noinspection PyBroadException
 def save_chat_states():
     """
     Сохряняет состояние чатов и пользователей в ``.pkl``-файл.
@@ -845,15 +850,20 @@ def save_chat_states():
     global log
     if log is None:
         log = prepare_logger()
-    log.info(f"saving info to {saves_path}...")
-    try:
-        with open(states_save_path, "w+b") as states_file:
-            pickle.dump(chat_states, states_file, pickle.HIGHEST_PROTOCOL)
-            with open(users_save_path, "w+b") as users_file:
-                pickle.dump(users_dict, users_file, pickle.HIGHEST_PROTOCOL)
-            log.info("...success!")
-    except Exception as exc:
-        log.warning("can\'t save info: {}".format(exc))
+    retry_count = 1
+    while retry_count < 6:
+        log.info(f"saving info to {saves_path} (try #{retry_count})...")
+        try:
+            with open(states_save_path, "w+b") as states_file:
+                pickle.dump(chat_states, states_file, pickle.HIGHEST_PROTOCOL)
+                with open(users_save_path, "w+b") as users_file:
+                    pickle.dump(users_dict, users_file, pickle.HIGHEST_PROTOCOL)
+                log.info("...success!")
+                break
+        except:
+            log.error(f"(try #{retry_count}) SHIT! Save failed!", exc_info=True)
+            time.sleep(retry_count)  # Not a bug, lol
+            retry_count += 1
 
 
 # noinspection PyUnusedLocal
@@ -870,6 +880,7 @@ def exit_handler(sig, frame):
     sys.exit(EXIT_SUCCESS)
 
 
+# noinspection PyBroadException
 def main() -> int:
     """
     Точка входа.
@@ -907,9 +918,8 @@ def main() -> int:
         global inline_disabled
         inline_disabled = False
         log.info("...success!")
-    except Exception as exc:
-        log.error("...failure! Reason: {}, inline disabled".format(exc))
-        log.debug("With trace:\n{}".format(traceback.format_exc()))
+    except:
+        log.error("...failure, inline disabled!", exc_info=True)
 
     # Init VK API
     try:
@@ -933,9 +943,8 @@ def main() -> int:
         log.debug("With response: {}".format(response))
         global vk_disabled
         vk_disabled = False
-    except Exception as exc:
-        log.error("...failure! Reason: {}, VK disabled".format(exc))
-        log.debug("With trace:\n{}".format(traceback.format_exc()))
+    except:
+        log.error("...failure, VK disabled!", exc_info=True)
 
     # Init whatanime.ga API
     try:
@@ -945,9 +954,8 @@ def main() -> int:
         log.info("...success! UID: {}".format(whatanime.user_id))
         global whatanime_disabled
         whatanime_disabled = False
-    except Exception as exc:
-        log.error("...failure! Reason: {}, whatanime disabled".format(exc))
-        log.debug("With trace:\n{}".format(traceback.format_exc()))
+    except:
+        log.error("...failure, whatanime disabled!", exc_info=True)
 
     # Init iqdb.org API
     try:
@@ -957,26 +965,28 @@ def main() -> int:
         log.info("...success! Boorus:\n{}".format(iqdb.boorus_status))
         global iqdb_disabled
         iqdb_disabled = False
-    except Exception as exc:
-        log.error("...failure! Reason: {}, iqdb disabled".format(exc))
-        log.debug("With trace:\n{}".format(traceback.format_exc()))
+    except:
+        log.error("...failure, iqdb disabled!", exc_info=True)
 
     # Load info from disk
     states_save_path = os.path.join(saves_path, "states.pkl")
     users_save_path = os.path.join(saves_path, "users.pkl")
-    log.info("loading info from {}...".format(saves_path))
-    try:
-        with open(states_save_path, "rb") as states_file:
-            global chat_states
-            chat_states = pickle.load(states_file)
-            with open(users_save_path, "rb") as users_file:
-                global users_dict
-                users_dict = pickle.load(users_file)
-            log.info("...success!")
-    except Exception as exc:
-        log.warning("can\'t load info: {}".format(exc))
-        log.debug("With trace:\n"
-                  "{}".format(traceback.format_exc()))
+    retry_count = 1
+    while retry_count < 6:
+        log.info(f"loading info from {saves_path} (try #{retry_count})...")
+        try:
+            with open(states_save_path, "rb") as states_file:
+                global chat_states
+                chat_states = pickle.load(states_file)
+                with open(users_save_path, "rb") as users_file:
+                    global users_dict
+                    users_dict = pickle.load(users_file)
+                log.info("...success!")
+                break
+        except:
+            log.error(f"(try #{retry_count}) SHIT! Load failed!", exc_info=True)
+            time.sleep(retry_count)  # Not a bug too
+            retry_count += 1
 
     # Start
     log.info("Starting polling")
