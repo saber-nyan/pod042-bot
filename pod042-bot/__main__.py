@@ -11,6 +11,7 @@ import random
 import re
 import signal
 import string
+import subprocess
 import sys
 import time
 import traceback
@@ -77,6 +78,8 @@ whatanime_disabled = True
 vk: VkApiMethod = None
 vk_tools: VkTools = None
 vk_disabled = True
+
+neuroshit_disabled = True
 
 VK_VER = 5.69
 
@@ -193,6 +196,39 @@ def download_and_report_progress(msg: Message, max_file_size: int
                                        not_ready + "Превью\n",
                                        chat_id, status_msg.message_id)
     return search_file_path, status_msg
+
+
+def run_neuroshit(msg_length: int) -> str:
+    """
+    Пытается сгенерировать бред с помощью torch-rnn.
+
+    :param int msg_length: желаемая длина результата
+    :return: бред
+    :rtype: str
+    :raise: SubprocessError при ошибке или через 10 секунд
+    """
+    result = subprocess.run(
+        cwd=config.NEURO_WORKDIR,  # Working directory
+        args=[
+            f"th",  # main executable
+            f"./sample.lua",  # NN script
+
+            f"-gpu",
+            f"{config.NEURO_GPU}",  # GPU num
+
+            f"-checkpoint",
+            f"{config.NEURO_MODEL_PATH}",  # NN model
+
+            f"-length",
+            f"{msg_length}",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=10,  # in secs
+        check=True,
+        universal_newlines=True,
+    )
+    return result.stdout
 
 
 def chat_in_state(chat_msg: Message, state_name: str) -> bool:
@@ -575,6 +611,43 @@ def bot_cmd_configuration_vk(msg: Message):
               f"Сейчас в списке:\n" \
               f"<code>{grps_str}</code>\n"
     bot.send_message(chat_id, out_msg, parse_mode="HTML")
+
+
+@bot.message_handler(commands=["neuroshit", ])
+def bot_cmd_neuroshit(msg: Message):
+    """
+    Генерирует бред нейросетью.
+    Первый параметр - длина сообщения, [100; 500]
+
+    :param Message msg: сообщение
+    """
+    bot_all_messages(msg)
+    chat_id = msg.chat.id
+    if neuroshit_disabled:
+        bot.send_message(chat_id, "Модуль Neuroshit отключен.")
+        return
+    try:
+        length = int(msg.text.split(" ")[2])
+    except:
+        length = 150
+
+    if not (100 < length < 500):
+        bot.send_message(chat_id, "Допустимая длина - от 100 до 500.")
+        return
+
+    try:
+        result = run_neuroshit(length)
+    except subprocess.CalledProcessError as exc:
+        result = f"Что-то пошло не так -_-\n" \
+                 f"{exc.stdout}"
+        log.error("neuroshit broken?!", exc_info=True)
+    except subprocess.TimeoutExpired:
+        result = f"Я думал слишком долго ~_~"
+        log.warning("neuroshit timeout", exc_info=True)
+    except:
+        result = f"Произошло нечто ужасное. Кучка макак уже (не) в пути."
+        log.warning("unknown neuroshit issue", exc_info=True)
+    bot.send_message(chat_id, result)
 
 
 @bot.message_handler(commands=["vk_pic", ])
@@ -976,6 +1049,22 @@ def main() -> int:
         iqdb_disabled = False
     except:
         log.error("...failure, iqdb disabled!", exc_info=True)
+
+    # Init neuroshit
+    try:
+        log.info("neuroshit init...")
+        test_str = run_neuroshit(2)
+        log.info(f"...success! Test str: {test_str}")
+        global neuroshit_disabled
+        neuroshit_disabled = False
+    except subprocess.CalledProcessError as exc:
+        log.error(f"...failure, neuroshit disabled (procerr)!\n"
+                  f"stdout: {exc.stdout}\n"
+                  f"stderr: {exc.stderr}", exc_info=True)
+    except subprocess.TimeoutExpired:
+        log.error(f"...failure, neuroshit disabled (proctimeout)!", exc_info=True)
+    except:
+        log.error(f"...failure, neuroshit disabled (unknown)!", exc_info=True)
 
     # Load info from disk
     states_save_path = os.path.join(saves_path, "states.pkl")

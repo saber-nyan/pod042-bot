@@ -60,6 +60,21 @@ if VK_ITEMS_PER_REQUEST > 100:
 
 NUM_THREADS = os.getenv('THREADS', 16)  # Кол-во потоков обработки запросов.
 
+# neuroshit #######
+
+# В вашем ${PATH} должен быть `th`! См. инструкции на https://github.com/jcjohnson/torch-rnn/
+
+# Директория с установкой torch-rnn. И нет, я пробовал докер, мне так удобнее.
+# /home/saber-nyan/Documents/WORKDIR/ML/torch-rnn/
+NEURO_WORKDIR = os.getenv('NEURO_WORKDIR', None)
+
+# Путь до модели.
+# /home/saber-nyan/Documents/WORKDIR/ML/models/3L_256_b_s_pr_a_po_ja_d_soc_222500.t7
+NEURO_MODEL_PATH = os.getenv('NEURO_MODEL_PATH', None)
+
+# Номер GPU для CUDA/OpenCL; -1 для работы на CPU. Не сильно медленнее, кстати.
+NEURO_GPU = os.getenv('NEURO_GPU', -1)
+###################
 logfmt_default = '%(asctime)s (%(filename)s:%(lineno)d %(threadName)s) %(levelname)s - %(name)s: %(message)s'
 LOG_FORMAT = os.getenv('LOG_FORMAT', logfmt_default)  # Формат лога. %%Зачем вам эта настройка?%%
 
