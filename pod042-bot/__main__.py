@@ -798,7 +798,16 @@ def bot_all_messages(msg: Message):
     if config.LOG_INPUT:
         global messages_log_files
         if chat_id not in messages_log_files:
-            base_name = "chat_{}.log".format(chat_title)
+            def tidy_str(old_str):
+                """
+                Оставляет только безопасные символы.
+                """
+                new_str = ""
+                for char in old_str:
+                    if char in (string.ascii_letters + string.digits + ' '):
+                        new_str += char
+                return new_str
+            base_name = "chat_{}.log".format(tidy_str(chat_title))
             log_path = os.path.join(logs_path, base_name)
             messages_log_files[chat_id] \
                 = open(log_path, mode="at", buffering=1, encoding="utf-8", errors="backslashreplace")
