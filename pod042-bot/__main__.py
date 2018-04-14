@@ -988,6 +988,12 @@ def main() -> int:
             time.sleep(retry_count)  # Not a bug too
             retry_count += 1
 
+    telebot.logger.setLevel(config.LOG_LEVEL)
+    telebot.apihelper.proxy = {
+        'http': config.PROXY,
+        'https': config.PROXY,
+    }
+
     # Start
     log.info("Starting polling")
     bot.polling(none_stop=True)

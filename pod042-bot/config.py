@@ -27,6 +27,9 @@ VK_PASSWORD = os.getenv('VK_PASSWORD', None)  # Да, по другому ник
 WHATANIME_TOKEN = os.getenv('WHATANIME_TOKEN', None)  # Токен whatanime.ga
 ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', None)  # Юзернейм админа. Ему будут доступны команды управления ботом.
 
+# Прокси в формате `socks5://user:pass@host:port`
+PROXY = os.getenv('PROXY', None)
+
 # Адрес сервера, откуда берутся звуки для inline.
 # Сервер должен быть доступен извне!
 # В корне сервера должен лежать index.json c таким содержанием:
