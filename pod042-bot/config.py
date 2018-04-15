@@ -62,7 +62,16 @@ NUM_THREADS = os.getenv('THREADS', 16)  # Кол-во потоков обраб�
 
 # neuroshit #######
 
-# В вашем ${PATH} должен быть `th`! См. инструкции на https://github.com/jcjohnson/torch-rnn/
+# Необходимо скопировать переменные, полученные после установки torch7 в ваш env-файл!
+# У меня это:
+'''
+LUA_PATH='/home/saber-nyan/.luarocks/share/lua/5.1/?.lua;/home/saber-nyan/.luarocks/share/lua/5.1/?/init.lua;/home/saber-nyan/torch/install/share/lua/5.1/?.lua;/home/saber-nyan/torch/install/share/lua/5.1/?/init.lua;./?.lua;/home/saber-nyan/torch/install/share/luajit-2.1.0-beta1/?.lua;/usr/local/share/lua/5.1/?.lua;/usr/local/share/lua/5.1/?/init.lua'
+LUA_CPATH='/home/saber-nyan/.luarocks/lib/lua/5.1/?.so;/home/saber-nyan/torch/install/lib/lua/5.1/?.so;./?.so;/usr/local/lib/lua/5.1/?.so;/usr/local/lib/lua/5.1/loadall.so'
+PATH=/home/saber-nyan/torch/install/bin:$PATH
+LD_LIBRARY_PATH=/home/saber-nyan/torch/install/lib:$LD_LIBRARY_PATH
+DYLD_LIBRARY_PATH=/home/saber-nyan/torch/install/lib:$DYLD_LIBRARY_PATH
+LUA_CPATH='/home/saber-nyan/torch/install/lib/?.so;'$LUA_CPATH
+'''
 
 # Директория с установкой torch-rnn. И нет, я пробовал докер, мне так удобнее.
 # /home/saber-nyan/Documents/WORKDIR/ML/torch-rnn/
