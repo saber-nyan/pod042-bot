@@ -637,7 +637,7 @@ def bot_cmd_neuroshit(msg: Message):
     except:
         length = 150
 
-    if not (100 < length < 500):
+    if not (100 <= length <= 500):
         bot.send_message(chat_id, "Допустимая длина - от 100 до 500.")
         return
 
