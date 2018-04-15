@@ -633,7 +633,7 @@ def bot_cmd_neuroshit(msg: Message):
         bot.send_message(chat_id, "Модуль Neuroshit отключен.")
         return
     try:
-        length = int(msg.text.split(" ")[2])
+        length = int(msg.text.split(" ")[1])
     except:
         length = 150
 
