@@ -83,6 +83,9 @@ NEURO_MODEL_PATH = os.getenv('NEURO_MODEL_PATH', None)
 
 # Номер GPU для CUDA/OpenCL; -1 для работы на CPU. Не сильно медленнее, кстати.
 NEURO_GPU = os.getenv('NEURO_GPU', -1)
+
+# Температора для нейронной сети. Чем больше температура, тем меньше она исходит из текста модели.
+NEURO_TEMP = os.getenv('NEURO_TEMP', 0.4)
 ###################
 logfmt_default = '%(asctime)s (%(filename)s:%(lineno)d %(threadName)s) %(levelname)s - %(name)s: %(message)s'
 LOG_FORMAT = os.getenv('LOG_FORMAT', logfmt_default)  # Формат лога. %%Зачем вам эта настройка?%%

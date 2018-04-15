@@ -219,6 +219,12 @@ def run_neuroshit(msg_length: int) -> str:
             f"-checkpoint",
             f"{config.NEURO_MODEL_PATH}",  # NN model
 
+            f"-sample",  # sample from the next-character distribution at each timestep
+            f"1",
+
+            f"-temperature",  # Softmax temperature to use when sampling
+            f"{config.NEURO_TEMP}",  # Higher temperatures give noiser samples
+
             f"-length",
             f"{msg_length}",
         ],
