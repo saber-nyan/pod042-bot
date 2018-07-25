@@ -891,9 +891,9 @@ def bot_all_messages(msg: Message):
         log.debug("user not known")
         users_dict[user.username] = user.id
     else:
-        log.debug("user known")
-    chat_id = msg.chat.id
-    chat_title = chat.title if chat.title is not None else chat.username  # FIXME: dangerous 4 channels!
+        log.debug("user known or channel")
+    chat_id = chat.id
+    chat_title = getattr(chat, "title", None) or getattr(chat, "username", None) or chat_id
     if chat_id not in chat_states:
         log.debug("chat not known")
         chat_states[chat_id] = chat_state.ChatState(chat_state.NONE, chat_title)
