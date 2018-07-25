@@ -70,7 +70,7 @@ logs_path = os.path.join(config.BOT_HOME, "logs")
 saves_path = os.path.join(config.BOT_HOME, "saves")
 tmp_path = os.path.join(config.BOT_HOME, "tmp")
 
-bot = telebot.TeleBot(config.BOT_TOKEN, num_threads=config.NUM_THREADS)
+bot = telebot.TeleBot(config.BOT_TOKEN, num_threads=int(config.NUM_THREADS))
 iqdb: iqdb_org.IqdbClient = None
 iqdb_disabled = True
 whatanime: whatanime_ga.WhatAnimeClient = None
@@ -152,7 +152,12 @@ def download_and_report_progress(msg: Message, max_file_size: int
                                            not_ready + "Результат\n" +
                                            not_ready + "Превью\n",
                                            chat_id, status_msg.message_id)
-        response = requests.get(download_url, timeout=4, stream=True)
+
+        # response = requests.get(download_url, timeout=4, stream=True)  # FIXED: tg blocked in Russia, use proxy
+        # noinspection PyProtectedMember
+        # response = telebot.apihelper._get_req_session().get(download_url, timeout=4, stream=True)
+        response = telebot.apihelper._get_req_session().request('get', download_url, timeout=4, stream=True,
+                                                                proxies=telebot.apihelper.proxy)
         data = response.raw.read(max_file_size + 1, decode_content=True)
         if len(data) > max_file_size:  # 2MB
             response.close()
