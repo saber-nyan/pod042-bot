@@ -203,11 +203,12 @@ def download_and_report_progress(msg: Message, max_file_size: int
     return search_file_path, status_msg
 
 
-def run_neuroshit(msg_length: int) -> str:
+def run_neuroshit(msg_length: int, start_text: str) -> str:
     """
     Пытается сгенерировать бред с помощью torch-rnn.
 
     :param int msg_length: желаемая длина результата
+    :param str start_text: текст, передаваемый в нейросеть
     :return: бред
     :rtype: str
     :raise: SubprocessError при ошибке или через 10 секунд
@@ -232,6 +233,9 @@ def run_neuroshit(msg_length: int) -> str:
 
             f"-length",
             f"{msg_length}",
+
+            f"-start_text",
+            f"{start_text}"
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -656,17 +660,37 @@ def bot_cmd_neuroshit(msg: Message):
     if neuroshit_disabled:
         bot.send_message(chat_id, "Модуль Neuroshit отключен.")
         return
-    try:
-        length = int(msg.text.split(" ")[1])
-    except:
+
+    args = msg.text.split(" ")[1:]
+    if len(args) <= 0:
         length = 150
+        start_text = chr(random.randrange(1, 0x10FFF0))
+    elif len(args) == 1:
+        try:
+            length = int(args[0])
+            start_text = chr(random.randrange(1, 0x10FFF0))
+        except:
+            length = 150
+            start_text = args[1]
+    else:
+        try:
+            length = int(args[0])
+            start_text = " ".join(args[1:])
+        except:
+            length = 150
+            start_text = " ".join(args)
+
+    # try:
+    #     length = int(msg.text.split(" ")[1])
+    # except:
+    #     length = 150
 
     if not (100 <= length <= 500):
         bot.send_message(chat_id, "Допустимая длина - от 100 до 500.")
         return
 
     try:
-        result = run_neuroshit(length)
+        result = run_neuroshit(length, start_text)
     except subprocess.CalledProcessError as exc:
         result = f"Что-то пошло не так -_-\n" \
                  f"{exc.stdout}"
