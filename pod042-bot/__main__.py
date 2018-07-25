@@ -661,14 +661,14 @@ def bot_cmd_neuroshit(msg: Message):
         bot.send_message(chat_id, "Модуль Neuroshit отключен.")
         return
 
+    start_text = random.choice(string.ascii_letters)
+
     args = msg.text.split(" ")[1:]
     if len(args) <= 0:
         length = 150
-        start_text = chr(random.randrange(1, 0x10FFF0))
     elif len(args) == 1:
         try:
             length = int(args[0])
-            start_text = chr(random.randrange(1, 0x10FFF0))
         except:
             length = 150
             start_text = args[1]
