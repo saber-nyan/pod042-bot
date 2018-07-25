@@ -804,7 +804,7 @@ def bot_cmd_quote(msg: Message):
     :param Message msg: сообщение
     """
     bot_all_messages(msg)
-    quote = requests.get("https://tproger.ru/wp-content/plugins/citation-widget/getQuotes.php").text
+    quote = requests.get("https://tproger.ru/wp-content/plugins/citation-widget/get-quote.php").text
     bot.send_message(msg.chat.id, f"<code>{quote}</code>", parse_mode="HTML")
 
 
