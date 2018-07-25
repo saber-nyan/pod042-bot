@@ -268,12 +268,15 @@ def is_admin(chat_msg: Message) -> bool:
     """
     if config.ADMIN_USERNAME is None:
         return False
+    if chat_msg.chat.type == "channel":
+        return False
     sender: User = chat_msg.from_user
     log.debug(f"{sender.username} admin check...")
     return True if sender.username == config.ADMIN_USERNAME else False
 
 
 @bot.message_handler(commands=["abort", ])
+@bot.channel_post_handler(commands=["abort", ])
 def bot_cmd_abort(msg: Message):
     """
     Отменяет выполняемую команду.
@@ -291,6 +294,7 @@ def bot_cmd_abort(msg: Message):
 
 # noinspection PyBroadException
 @bot.message_handler(commands=["eval", ], func=is_admin)
+@bot.channel_post_handler(commands=["eval", ], func=is_admin)
 def bot_cmd_eval(msg: Message):
     """
     Позволяет запустить любой кусок Python кода на сервере.
@@ -317,6 +321,7 @@ def bot_cmd_eval(msg: Message):
 
 
 @bot.message_handler(commands=["list_chats", ], func=is_admin)
+@bot.channel_post_handler(commands=["list_chats", ], func=is_admin)
 def bot_cmd_list_chats(msg: Message):
     """
     Возвращает список чатов и их состояние.
@@ -337,6 +342,7 @@ def bot_cmd_list_chats(msg: Message):
 
 
 @bot.message_handler(commands=["send_msg", ], func=is_admin)
+@bot.channel_post_handler(commands=["send_msg", ], func=is_admin)
 def bot_cmd_send_msg(msg: Message):
     """
     Отправляет собщение на указанный ``chat_id``.
@@ -360,6 +366,7 @@ def bot_cmd_send_msg(msg: Message):
 
 
 @bot.message_handler(commands=["info", ])
+@bot.channel_post_handler(commands=["info", ])
 def bot_cmd_info(msg: Message):
     """
     Информация о боте и чате.
@@ -372,6 +379,8 @@ def bot_cmd_info(msg: Message):
 
 # noinspection PyBroadException
 @bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.IQDB),
+                     content_types=["text", "document", "photo"])
+@bot.channel_post_handler(func=lambda msg: chat_in_state(msg, chat_state.IQDB),
                      content_types=["text", "document", "photo"])
 def bot_process_iqdb(msg: Message):
     """
@@ -424,6 +433,8 @@ def bot_process_iqdb(msg: Message):
 
 
 @bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.WHATANIME),
+                     content_types=["text", "document", "photo"])
+@bot.channel_post_handler(func=lambda msg: chat_in_state(msg, chat_state.WHATANIME),
                      content_types=["text", "document", "photo"])
 def bot_process_whatanime(msg: Message):
     """
@@ -515,6 +526,7 @@ def bot_process_whatanime(msg: Message):
 
 
 @bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.CONFIGURE_VK_GROUPS_ADD))
+@bot.channel_post_handler(func=lambda msg: chat_in_state(msg, chat_state.CONFIGURE_VK_GROUPS_ADD))
 def bot_process_configuration_vk(msg: Message):
     """
     Проверяет адреса и добавляет их в список групп ВК.
@@ -566,6 +578,7 @@ def bot_process_configuration_vk(msg: Message):
 
 
 @bot.message_handler(commands=['add', ])
+@bot.channel_post_handler(commands=['add', ])
 def bot_cmd_configuration_vk_add(msg: Message):
     """
     Переводит бота в режим добавления групп ВК, если находится в правильном состоянии.
@@ -584,6 +597,7 @@ def bot_cmd_configuration_vk_add(msg: Message):
 
 
 @bot.message_handler(commands=["clear", ])
+@bot.channel_post_handler(commands=["clear", ])
 def bot_cmd_configuration_vk_clear(msg: Message):
     """
     Очищает список групп ВК, если находится в правильном состоянии.
@@ -598,6 +612,7 @@ def bot_cmd_configuration_vk_clear(msg: Message):
 
 
 @bot.message_handler(commands=["config_vk", ])
+@bot.channel_post_handler(commands=["config_vk", ])
 def bot_cmd_configuration_vk(msg: Message):
     """
     Запускает настройку сообществ `vk.com`.
@@ -625,6 +640,7 @@ def bot_cmd_configuration_vk(msg: Message):
 
 
 @bot.message_handler(commands=["neuroshit", ])
+@bot.channel_post_handler(commands=["neuroshit", ])
 def bot_cmd_neuroshit(msg: Message):
     """
     Генерирует бред нейросетью.
@@ -662,6 +678,7 @@ def bot_cmd_neuroshit(msg: Message):
 
 
 @bot.message_handler(commands=["vk_pic", ])
+@bot.channel_post_handler(commands=["vk_pic", ])
 def bot_cmd_vk_pic(msg: Message):
     """
     Посылает рандомную картинку из списка сообществ.
@@ -728,6 +745,7 @@ def bot_cmd_vk_pic(msg: Message):
 
 
 @bot.message_handler(commands=["whatanime", ])
+@bot.channel_post_handler(commands=["whatanime", ])
 def bot_cmd_whatanime(msg: Message):
     """
     Входит в режим поиска аниме по скриншоту (спасибо whatanime.ga за API).
@@ -747,6 +765,7 @@ def bot_cmd_whatanime(msg: Message):
 
 
 @bot.message_handler(commands=["iqdb", ])
+@bot.channel_post_handler(commands=["iqdb", ])
 def bot_cmd_iqdb(msg: Message):
     """
     Входит в режим поиска соуса арта (не спасибо iqdb.org за отсутствие API).
@@ -766,6 +785,7 @@ def bot_cmd_iqdb(msg: Message):
 
 
 @bot.message_handler(commands=["codfish", ])
+@bot.channel_post_handler(commands=["codfish", ])
 def bot_cmd_codfish(msg: Message):
     """
     Бьет треской, теперь с видео.
@@ -797,6 +817,7 @@ def bot_cmd_codfish(msg: Message):
 
 
 @bot.message_handler(commands=["quote", ])
+@bot.channel_post_handler(commands=["quote", ])
 def bot_cmd_quote(msg: Message):
     """
     Посылает рандомную цитату с `tproger.ru`.
@@ -809,6 +830,7 @@ def bot_cmd_quote(msg: Message):
 
 
 @bot.message_handler(commands=["anek", ])
+@bot.channel_post_handler(commands=["anek", ])
 def bot_cmd_anek(msg: Message):
     """
     Посылает рандомный анекдот с `baneks.ru`.
@@ -865,13 +887,13 @@ def bot_all_messages(msg: Message):
     """
     user: User = msg.from_user
     chat: Chat = msg.chat
-    if user.username not in users_dict:
+    if msg.chat.type != "channel" and user.username not in users_dict:
         log.debug("user not known")
         users_dict[user.username] = user.id
     else:
         log.debug("user known")
     chat_id = msg.chat.id
-    chat_title = chat.title if chat.title is not None else chat.username
+    chat_title = chat.title if chat.title is not None else chat.username  # FIXME: dangerous 4 channels!
     if chat_id not in chat_states:
         log.debug("chat not known")
         chat_states[chat_id] = chat_state.ChatState(chat_state.NONE, chat_title)
@@ -882,15 +904,16 @@ def bot_all_messages(msg: Message):
     if config.LOG_INPUT:
         global messages_log_files
         if chat_id not in messages_log_files:
-            def tidy_str(old_str):
+            def tidy_str(old_str: str):
                 """
                 Оставляет только безопасные символы.
                 """
-                new_str = ""
-                for char in old_str:
-                    if char in (string.ascii_letters + string.digits + ' '):
-                        new_str += char
-                return new_str
+                # new_str = ""
+                # for char in old_str:
+                #     if char in (string.ascii_letters + string.digits + ' '):
+                #         new_str += char
+                # return new_str
+                return old_str.replace("/", " ").replace("\0", " ")
             base_name = "chat_{}.log".format(tidy_str(chat_title))
             log_path = os.path.join(logs_path, base_name)
             messages_log_files[chat_id] \
@@ -900,10 +923,10 @@ def bot_all_messages(msg: Message):
         dtime = datetime.fromtimestamp(msg.date).strftime('%Y-%m-%d %H:%M:%S')
         if msg.text is not None:
             out_str = "({}) {}:\n" \
-                      "{}\n\n".format(dtime, user.username, msg.text)
+                      "{}\n\n".format(dtime, getattr(user, "username", "None"), msg.text)
         else:
             out_str = "({}) {}:\n" \
-                      "*{}* {}\n\n".format(dtime, user.username, msg.content_type, msg.caption)
+                      "*{}* {}\n\n".format(dtime, getattr(user, "username", "None"), msg.content_type, msg.caption)
         file_instance.write(out_str)
         file_instance.flush()
 
