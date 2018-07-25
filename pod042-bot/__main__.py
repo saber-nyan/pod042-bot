@@ -591,7 +591,7 @@ def bot_cmd_configuration_vk_add(msg: Message):
                   "по одному на строку.\n" \
                   "<i>Желательно без мусорных знаков...</i>"
         chat_id = msg.chat.id
-        if msg.chat.type != "channel":
+        if msg.chat.type == "channel":
             sent_msg = bot.send_message(chat_id, out_msg, parse_mode="HTML")
         else:
             sent_msg = bot.send_message(chat_id, out_msg, reply_markup=ForceReply(), parse_mode="HTML")
