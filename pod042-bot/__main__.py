@@ -1114,7 +1114,7 @@ def main() -> int:
     # Init neuroshit
     try:
         log.info("neuroshit init...")
-        test_str = run_neuroshit(2)
+        test_str = run_neuroshit(2, "b")
         log.info(f"...success! Test str: {test_str}")
         global neuroshit_disabled
         neuroshit_disabled = False
