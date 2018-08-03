@@ -22,5 +22,11 @@ class VkGroup:
         self.name = name
         self.url_name = url_name
 
-    def __str__(self) -> str:
+    def __str(self) -> str:
         return "{} ({}) #{}".format(self.name, self.url_name, self.vk_id)
+
+    def __str__(self) -> str:
+        return self.__str()
+
+    def __repr__(self) -> str:
+        return self.__str()

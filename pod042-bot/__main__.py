@@ -16,9 +16,10 @@ import sys
 import time
 import traceback
 import typing
-from datetime import datetime
+import datetime
 
 import pkg_resources
+import psutil
 import requests
 import telebot
 from telebot import util
@@ -378,14 +379,49 @@ def bot_cmd_info(msg: Message):
     :param Message msg: сообщение
     """
     bot_all_messages(msg)
-    # TODO
+    chat_id = msg.chat.id
+
+    uptime_secs = time.time() - psutil.boot_time()
+    uptime_pretty = str(datetime.timedelta(seconds=uptime_secs))
+
+    load_avg_raw: typing.Tuple[float] = os.getloadavg()  # 1, 5, 15 min
+    load_avg_pretty = f"(1, 5, 15 минут) {load_avg_raw[0]}, {load_avg_raw[1]}, {load_avg_raw[2]}"
+
+    mem_total_mb = psutil.virtual_memory().total / 1024 / 1024
+    mem_used_mb = psutil.virtual_memory().used / 1024 / 1024
+    mem_pretty = f"{mem_used_mb:.0f} MB/{mem_total_mb:.0f} MB ({mem_used_mb/mem_total_mb*100:.1f}%)"
+
+    disc_total_mb = psutil.disk_usage('/').total / 1024 / 1024
+    disc_used_mb = psutil.disk_usage('/').used / 1024 / 1024
+    disc_pretty = f"{disc_used_mb:.0f} MB/{disc_total_mb:.0f} MB ({disc_used_mb/disc_total_mb*100:.1f}%)"
+
+    net_read_gb = psutil.net_io_counters().bytes_recv / 1024 / 1024 / 1024
+    net_write_gb = psutil.net_io_counters().bytes_sent / 1024 / 1024 / 1024
+    net_pretty = f"принято {net_read_gb:.1f} GB/передано {net_write_gb:.1f} GB"
+
+    tc = chat_states[chat_id]
+    chat_info = f"""ID: `{chat_id}`
+    Состояние (/abort для сброса): `{tc.state_name}`
+    Список настроенных групп VK: `{tc.vk_groups}`"""
+
+    out_msg = (f"**СОСТОЯНИЕ**\n"
+               f"**Бот:**\n"
+               f"    Аптайм: `{uptime_pretty}`\n"
+               f"    Загрузка ЦП: `{load_avg_pretty}`\n"
+               f"    RAM: `{mem_pretty}`\n"
+               f"    HDD (`/`): `{disc_pretty}`\n"
+               f"    Сеть: `{net_pretty}`\n"
+               f"\n"
+               f"**Чат:**\n"
+               f"    {chat_info}")
+    bot.send_message(chat_id, out_msg, parse_mode="Markdown")
 
 
 # noinspection PyBroadException
 @bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.IQDB),
                      content_types=["text", "document", "photo"])
 @bot.channel_post_handler(func=lambda msg: chat_in_state(msg, chat_state.IQDB),
-                     content_types=["text", "document", "photo"])
+                          content_types=["text", "document", "photo"])
 def bot_process_iqdb(msg: Message):
     """
     Ищет арт на бурах с помощью `iqdb.org`.
@@ -439,7 +475,7 @@ def bot_process_iqdb(msg: Message):
 @bot.message_handler(func=lambda msg: chat_in_state(msg, chat_state.WHATANIME),
                      content_types=["text", "document", "photo"])
 @bot.channel_post_handler(func=lambda msg: chat_in_state(msg, chat_state.WHATANIME),
-                     content_types=["text", "document", "photo"])
+                          content_types=["text", "document", "photo"])
 def bot_process_whatanime(msg: Message):
     """
     Ищет скриншот из аниме с помощью `whatanime.ga`.
@@ -941,13 +977,14 @@ def bot_all_messages(msg: Message):
                 #         new_str += char
                 # return new_str
                 return old_str.replace("/", " ").replace("\0", " ")
+
             base_name = "chat_{}.log".format(tidy_str(chat_title))
             log_path = os.path.join(logs_path, base_name)
             messages_log_files[chat_id] \
                 = open(log_path, mode="at", buffering=1, encoding="utf-8", errors="backslashreplace")
             messages_log_files[chat_id].write("with id: {}\n".format(chat_id))
         file_instance: io.StringIO = messages_log_files[chat_id]
-        dtime = datetime.fromtimestamp(msg.date).strftime('%Y-%m-%d %H:%M:%S')
+        dtime = datetime.datetime.fromtimestamp(msg.date).strftime('%Y-%m-%d %H:%M:%S')
         if msg.text is not None:
             out_str = "({}) {}:\n" \
                       "{}\n\n".format(dtime, getattr(user, "username", "None"), msg.text)

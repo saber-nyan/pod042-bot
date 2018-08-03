@@ -23,7 +23,8 @@ setup(
         'vk_api',
         'Pillow',
         'beautifulsoup4',
-        'requests[socks]'
+        'requests[socks]',
+        'psutil'
     ],
     packages=find_packages(),
     include_package_data=True,
