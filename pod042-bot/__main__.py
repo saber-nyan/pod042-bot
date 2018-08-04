@@ -911,7 +911,6 @@ def bot_cmd_pat(msg: Message):
     :param msg:
     """
     bot_all_messages(msg)
-    bot_all_messages(msg)
     chat_id = msg.chat.id
     bot.send_chat_action(chat_id, "record_video")
     pat_video = pkg_resources.resource_stream(config.VIDEOS, config.PAT)
