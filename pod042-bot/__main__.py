@@ -906,9 +906,9 @@ def bot_cmd_codfish(msg: Message):
 @bot.channel_post_handler(commands=["cat", ])
 def bot_cmd_pat(msg: Message):
     """
-    ???
+    Гладит котиком, с супермилым видео!
 
-    :param msg:
+    :param Message msg: сообщение
     """
     bot_all_messages(msg)
     chat_id = msg.chat.id
