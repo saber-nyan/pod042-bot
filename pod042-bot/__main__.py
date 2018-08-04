@@ -902,8 +902,8 @@ def bot_cmd_codfish(msg: Message):
                        caption=f"От всей (широкой) души шлепнул треской {', '.join(names)}.")
 
 
-@bot.message_handler(commands=["pat", ])
-@bot.channel_post_handler(commands=["pat", ])
+@bot.message_handler(commands=["cat", ])
+@bot.channel_post_handler(commands=["cat", ])
 def bot_cmd_pat(msg: Message):
     """
     ???
@@ -917,7 +917,7 @@ def bot_cmd_pat(msg: Message):
     pat_video = pkg_resources.resource_stream(config.VIDEOS, config.PAT)
     names, errors_count = get_names(msg)
     if len(names) == 0 and errors_count == 0:
-        bot.send_message(chat_id, "Неверный формат команды. Пиши `/pat @user_name`~", parse_mode="Markdown")
+        bot.send_message(chat_id, "Неверный формат команды. Пиши `/cat @user_name`~", parse_mode="Markdown")
     elif len(names) == 0:
         bot.send_message(chat_id, f"Не удалось погладить кого-либо ~_~. Не смог вспомнить человечков: {errors_count}\n"
                                   f"Не ругайтесь, у меня лапки...")
