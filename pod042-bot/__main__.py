@@ -400,21 +400,24 @@ def bot_cmd_info(msg: Message):
     net_pretty = f"принято {net_read_gb:.1f} GB/передано {net_write_gb:.1f} GB"
 
     tc = chat_states[chat_id]
-    chat_info = f"""ID: `{chat_id}`
-    Состояние (/abort для сброса): `{tc.state_name}`
-    Список настроенных групп VK: `{tc.vk_groups}`"""
+    chat_info = f"""ID: <code>{chat_id}</code>
+    Состояние (/abort для сброса): <code>{tc.state_name}</code>
+    Список настроенных групп VK: <code>{tc.vk_groups}</code>"""
 
-    out_msg = (f"**СОСТОЯНИЕ**\n"
-               f"**Бот:**\n"
-               f"    Аптайм: `{uptime_pretty}`\n"
-               f"    Загрузка ЦП: `{load_avg_pretty}`\n"
-               f"    RAM: `{mem_pretty}`\n"
-               f"    HDD (`/`): `{disc_pretty}`\n"
-               f"    Сеть: `{net_pretty}`\n"
+    out_msg = (f"<b>СОСТОЯНИЕ</b>\n"
+               f"<b>Бот:</b>\n"
+               f"    Работаю в <code>{config.NUM_THREADS}</code> потоков...\n"
+               f"    Аптайм: <code>{uptime_pretty}</code>\n"
+               f"    Загрузка ЦП: <code>{load_avg_pretty}</code>\n"
+               f"    RAM: <code>{mem_pretty}</code>\n"
+               f"    HDD (<code>/</code>): <code>{disc_pretty}</code>\n"
+               f"    Сеть: <code>{net_pretty}</code>\n"
                f"\n"
-               f"**Чат:**\n"
-               f"    {chat_info}")
-    bot.send_message(chat_id, out_msg, parse_mode="Markdown")
+               f"<b>Чат:</b>\n"
+               f"    {chat_info}\n"
+               f"По вопросам работы обращаться сюда: @{config.ADMIN_USERNAME}")
+    log.debug("ready to send:\n%s", out_msg)
+    bot.send_message(chat_id, out_msg, parse_mode="HTML")
 
 
 # noinspection PyBroadException
@@ -847,6 +850,32 @@ def bot_cmd_iqdb(msg: Message):
     bot.send_message(chat_id, out_msg, parse_mode="HTML")
 
 
+def get_names(msg: Message) -> typing.Tuple[typing.List[str], int]:
+    """
+    Забирает список юзернеймов из сообщения и возвращает список имен и количество
+    нераспознанных юзернеймов.
+
+    :param Message msg: сообщение
+    :return: (список имен, количество нераспознанных имен)
+    :rtype: typing.Tuple[typing.List[str], int]
+    """
+    usernames = msg.text.replace("@", "").split()[1:]  # delete bot command
+    me = bot.get_me().username
+    unknown_username_count = 0
+    result = []
+    for username in usernames:
+        if username == me:
+            result.append("себя")
+        elif username in users_dict:
+            try:
+                result.append(bot.get_chat_member(msg.chat.id, users_dict[username]).user.first_name)
+            except:
+                unknown_username_count += 1
+        else:
+            unknown_username_count += 1
+    return result, unknown_username_count
+
+
 @bot.message_handler(commands=["codfish", ])
 @bot.channel_post_handler(commands=["codfish", ])
 def bot_cmd_codfish(msg: Message):
@@ -857,26 +886,49 @@ def bot_cmd_codfish(msg: Message):
     """
     bot_all_messages(msg)
     chat_id = msg.chat.id
-    text = msg.text.replace("@", "")  # Sometimes `lolbot` is written as `@lolbot`
-    words = text.split()
-    username = words[-1]  # Get username from orig. message
     bot.send_chat_action(chat_id, "record_video")
     codfish_video = pkg_resources.resource_stream(config.VIDEOS, config.CODFISH)  # Our codfish video
-    if len(words) <= 1:  # No username
-        bot.send_message(chat_id, "Укажи юзернейм кого бить!")
-    elif username == bot.get_me().username:  # Himself
-        bot.send_video(chat_id, codfish_video, caption="Хорошенько шлепнул себя треской.")
-    elif username in users_dict:  # Search in our users dict (user_id's are unique?)
-        # raw = requests.get("https://api.telegram.org:443/bot{}/getChatMember?chat_id={}&user_id={}"
-        #                    .format(config.BOT_TOKEN, chat_id, users_dict[username]))  # Get user first name
-        # response_json: tuple = raw.json()
-        # # noinspection PyTypeChecker
-        # user_first_name = response_json["result"]["user"]["first_name"]
-        user_first_name = bot.get_chat_member(chat_id, users_dict[username]).user.first_name
-        log.debug(f"user first name is {user_first_name}")
-        bot.send_video(chat_id, codfish_video, caption=f"Хорошенько шлепнул {user_first_name} треской.")
-    else:  # Unknown
-        bot.send_message(chat_id, f"Извини, пока не знаю <b>{username}</b>...", parse_mode="HTML")
+    names, errors_count = get_names(msg)
+    if len(names) == 0 and errors_count == 0:
+        bot.send_message(chat_id, "Неверный формат команды. Пиши `/codfish @user_name`!", parse_mode="Markdown")
+    elif len(names) == 0:
+        bot.send_message(chat_id, f"Не шлепнул никого. Не смог вспомнить человечков: {errors_count}")
+    elif errors_count != 0:
+        bot.send_video(chat_id, codfish_video,
+                       caption=f"От всей (широкой) души шлепнул треской {', '.join(names)}. "
+                               f"Не смог вспомнить человечков: {errors_count}")
+    else:
+        bot.send_video(chat_id, codfish_video,
+                       caption=f"От всей (широкой) души шлепнул треской {', '.join(names)}.")
+
+
+@bot.message_handler(commands=["pat", ])
+@bot.channel_post_handler(commands=["pat", ])
+def bot_cmd_pat(msg: Message):
+    """
+    ???
+
+    :param msg:
+    """
+    bot_all_messages(msg)
+    bot_all_messages(msg)
+    chat_id = msg.chat.id
+    bot.send_chat_action(chat_id, "record_video")
+    pat_video = pkg_resources.resource_stream(config.VIDEOS, config.PAT)
+    names, errors_count = get_names(msg)
+    if len(names) == 0 and errors_count == 0:
+        bot.send_message(chat_id, "Неверный формат команды. Пиши `/pat @user_name`~", parse_mode="Markdown")
+    elif len(names) == 0:
+        bot.send_message(chat_id, f"Не удалось погладить кого-либо ~_~. Не смог вспомнить человечков: {errors_count}\n"
+                                  f"Не ругайтесь, у меня лапки...")
+    elif errors_count != 0:
+        bot.send_video(chat_id, pat_video,
+                       caption=f"Ментально погладил {', '.join(names)}!"
+                               f"Не смог вспомнить человечков: {errors_count}\n"
+                               f"Не ругайтесь, у меня лапки...")
+    else:
+        bot.send_video(chat_id, pat_video,
+                       caption=f"Ментально погладил {', '.join(names)}!")
 
 
 @bot.message_handler(commands=["quote", ])
