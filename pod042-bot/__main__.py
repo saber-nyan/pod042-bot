@@ -923,7 +923,7 @@ def bot_cmd_pat(msg: Message):
                                   f"Не ругайтесь, у меня лапки...")
     elif errors_count != 0:
         bot.send_video(chat_id, pat_video,
-                       caption=f"Ментально погладил {', '.join(names)}!"
+                       caption=f"Ментально погладил {', '.join(names)}! "
                                f"Не смог вспомнить человечков: {errors_count}\n"
                                f"Не ругайтесь, у меня лапки...")
     else:
