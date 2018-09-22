@@ -338,11 +338,12 @@ def bot_cmd_list_chats(msg: Message):
     chat_id = msg.chat.id
     result = ""
     for other_chat_id, other_chat_state in chat_states.items():
+        result += f"<code>{other_chat_id}</code>: "
         if hasattr(other_chat_state, "title"):  # TODO: remove compatibility condition?
-            result += f"<code>{other_chat_id}</code>: {other_chat_state.title}, " \
-                      f"state <code>{other_chat_state.state_name}</code>\n"
-        else:
-            result += f"<code>{other_chat_id}</code>: state <code>{other_chat_state.state_name}</code>\n"
+            result += f"{other_chat_state.title}, "
+        if hasattr(other_chat_state, "member_usernames"):
+            result += f"members: <code>{other_chat_state.member_usernames}</code>, "
+        result += f"state <code>{other_chat_state.state_name}</code>\n"
     bot.send_message(chat_id, result, parse_mode="HTML")
 
 
@@ -418,6 +419,22 @@ def bot_cmd_info(msg: Message):
                f"По вопросам работы обращаться сюда: @{config.ADMIN_USERNAME}")
     log.debug("ready to send:\n%s", out_msg)
     bot.send_message(chat_id, out_msg, parse_mode="HTML")
+
+
+@bot.message_handler(regexp=r"@(every(one|body)|all)")
+def bot_msg_everyone(msg: Message):
+    """
+    Упоминает всех в чате, аналог `@everyone` в Discord.
+
+    :param Message msg: сообщение
+    """
+    bot_all_messages(msg)
+    current_chat_members = chat_states[msg.chat.id].member_usernames
+    result = ""
+    for username in current_chat_members:
+        result += f"@{username} "
+    if result:
+        bot.send_message(msg.chat.id, result)
 
 
 # noinspection PyBroadException
@@ -1011,10 +1028,17 @@ def bot_all_messages(msg: Message):
     if chat_id not in chat_states:
         log.debug("chat not known")
         chat_states[chat_id] = chat_state.ChatState(chat_state.NONE, chat_title)
+        if msg.chat.type != "channel" and user.username is not None:  # add source user to members
+            chat_states[chat_id].member_usernames.append(user.username)
     else:
         log.debug("chat known")
         if not hasattr(chat_states[chat_id], "title"):
             chat_states[chat_id].title = chat_title
+        if not hasattr(chat_states[chat_id], "member_usernames"):
+            chat_states[chat_id].member_usernames = []
+    if msg.chat.type != "channel":
+        if user.username is not None and user.username not in chat_states[chat_id].member_usernames:
+            chat_states[chat_id].member_usernames.append(user.username)
     if config.LOG_INPUT:
         global messages_log_files
         if chat_id not in messages_log_files:
