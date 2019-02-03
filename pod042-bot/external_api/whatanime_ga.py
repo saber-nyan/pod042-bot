@@ -17,7 +17,7 @@ try:
 except ImportError:
     import config
 
-ENDPOINT: str = "https://whatanime.ga"
+ENDPOINT: str = "https://trace.moe"
 tmp_path = os.path.join(config.BOT_HOME, "tmp")
 
 
